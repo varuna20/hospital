@@ -1,0 +1,389 @@
+/**
+ * SUPER ADMIN SYSTEM SETTINGS
+ * ============================
+ * Global system configuration:
+ *  - Email / SMTP with auto-billing
+ *  - SMS gateway (Twilio, Nexmo, custom)
+ *  - Backup scheduler + restore
+ *  - Security overview
+ */
+import React, { useState, useEffect } from 'react';
+import api from '../../utils/api';
+import toast from 'react-hot-toast';
+import { fDate } from '../../utils/helpers';
+
+function Toggle({ value, onChange, label, desc }) {
+  return (
+    <div className="flex items-center justify-between py-3">
+      <div>
+        <p className="text-white text-sm font-medium">{label}</p>
+        {desc && <p className="text-xs mt-0.5" style={{ color:'var(--color-text-muted)' }}>{desc}</p>}
+      </div>
+      <div onClick={()=>onChange(!value)} className="relative w-11 h-6 rounded-full cursor-pointer transition-colors flex-shrink-0"
+        style={{ background: value?'var(--color-primary)':'var(--color-surface2)' }}>
+        <div className="absolute top-1 w-4 h-4 bg-white rounded-full transition-transform"
+          style={{ transform: value?'translateX(22px)':'translateX(4px)' }} />
+      </div>
+    </div>
+  );
+}
+
+export default function SuperSystem() {
+  const [settings, setSettings] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [testEmail, setTestEmail] = useState('');
+  const [testSMS, setTestSMS] = useState('');
+  const [testing, setTesting] = useState({ email:false, sms:false });
+  const [backups, setBackups] = useState([]);
+  const [backing, setBacking] = useState(false);
+  const [restoring, setRestoring] = useState('');
+  const [activeTab, setActiveTab] = useState('email');
+
+  const loadAll = () => {
+    Promise.all([
+      api.get('/system/settings'),
+      api.get('/backup/list').catch(()=>({ data:{ backups:[] } }))
+    ]).then(([s, b]) => {
+      setSettings(s.data.settings);
+      setBackups(b.data.backups || []);
+    }).catch(()=>{}).finally(()=>setLoading(false));
+  };
+
+  useEffect(()=>{ loadAll(); },[]);
+
+  const save = async () => {
+    setSaving(true);
+    try { await api.put('/system/settings', settings); toast.success('Settings saved!'); }
+    catch { toast.error('Failed to save'); } finally { setSaving(false); }
+  };
+
+  const upd = (path, val) => {
+    setSettings(prev => {
+      const parts = path.split('.'); const copy = JSON.parse(JSON.stringify(prev));
+      let obj = copy;
+      for (let i = 0; i < parts.length - 1; i++) { if (!obj[parts[i]]) obj[parts[i]] = {}; obj = obj[parts[i]]; }
+      obj[parts[parts.length - 1]] = val; return copy;
+    });
+  };
+
+  const sendTestEmail = async () => {
+    setTesting(t=>({...t,email:true}));
+    try { const { data } = await api.post('/system/email/test',{testEmail}); toast[data.success?'success':'error'](data.message); }
+    catch(e){ toast.error(e.response?.data?.message||'Test failed'); } finally{setTesting(t=>({...t,email:false}));}
+  };
+
+  const sendTestSMS = async () => {
+    setTesting(t=>({...t,sms:true}));
+    try { const { data } = await api.post('/system/sms/test',{testPhone:testSMS}); toast[data.success?'success':'error'](data.message); }
+    catch(e){ toast.error(e.response?.data?.message||'Test failed'); } finally{setTesting(t=>({...t,sms:false}));}
+  };
+
+  const triggerBackup = async () => {
+    setBacking(true);
+    try {
+      const { data } = await api.post('/backup/now');
+      toast.success(data.message || 'Backup started');
+      setTimeout(()=>{ api.get('/backup/list').then(r=>setBackups(r.data.backups||[])).catch(()=>{}); }, 4000);
+    } catch(e){ toast.error(e.response?.data?.message||'Backup failed'); }
+    finally{ setBacking(false); }
+  };
+
+  const restoreBackup = async (filename) => {
+    if (!window.confirm(`⚠️ RESTORE from "${filename}"?\n\nThis will REPLACE ALL current data. This cannot be undone.\n\nAre you sure?`)) return;
+    setRestoring(filename);
+    try {
+      const { data } = await api.post('/backup/restore/' + filename);
+      toast.success(data.message);
+    } catch(e){ toast.error(e.response?.data?.message||'Restore failed'); }
+    finally{ setRestoring(''); }
+  };
+
+  const deleteBackup = async (filename) => {
+    if (!window.confirm('Delete backup "' + filename + '"?')) return;
+    try { await api.delete('/backup/' + filename); setBackups(b=>b.filter(x=>x.filename!==filename)); toast.success('Deleted'); }
+    catch{ toast.error('Failed to delete'); }
+  };
+
+  if (loading) return <div className="text-center py-12" style={{ color:'var(--color-text-muted)' }}>Loading…</div>;
+  if (!settings) return null;
+
+  const tabs = [
+    { id:'email',    label:'✉ Email/SMTP' },
+    { id:'sms',      label:'📱 SMS' },
+    { id:'backup',   label:'💾 Backup' },
+    { id:'security', label:'🔒 Security' },
+  ];
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <div>
+          <h1 className="page-title">System Settings</h1>
+          <p className="text-sm" style={{ color:'var(--color-text-muted)' }}>Global configuration — affects all hospitals</p>
+        </div>
+        <button onClick={save} disabled={saving} className="btn-primary">{saving?'Saving…':'💾 Save All'}</button>
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex gap-2 mb-6 border-b pb-0" style={{ borderColor:'var(--color-border)' }}>
+        {tabs.map(t=>(
+          <button key={t.id} onClick={()=>setActiveTab(t.id)}
+            className="px-4 py-2.5 text-sm font-medium transition-all"
+            style={{ color: activeTab===t.id?'var(--color-primary)':'var(--color-text-muted)',
+                     borderBottom: activeTab===t.id?'2px solid var(--color-primary)':'2px solid transparent',
+                     marginBottom:'-1px' }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* EMAIL TAB */}
+      {activeTab==='email'&&(
+        <div className="card max-w-2xl space-y-4">
+          <div>
+            <h3 className="section-title">Email / SMTP</h3>
+            <p className="text-xs mt-1" style={{ color:'var(--color-text-muted)' }}>
+              Used for monthly billing, system alerts, and hospital notifications.
+            </p>
+          </div>
+          <div className="divide-y" style={{ borderColor:'var(--color-border)' }}>
+            <Toggle value={settings.email?.enabled} onChange={v=>upd('email.enabled',v)} label="Enable Email" desc="Required for auto-billing and notifications" />
+          </div>
+          {settings.email?.enabled&&(
+            <>
+              <div>
+                <label className="label">Email Provider</label>
+                <select className="input" value={settings.email?.provider||'smtp'} onChange={e=>upd('email.provider',e.target.value)}>
+                  <option value="smtp">SMTP (any provider)</option>
+                  <option value="gmail">Gmail (use App Password)</option>
+                  <option value="sendgrid">SendGrid</option>
+                </select>
+              </div>
+              <div className="grid md:grid-cols-2 gap-3">
+                {[['email.host','SMTP Host','text','smtp.gmail.com'],
+                  ['email.port','Port','number','587'],
+                  ['email.user','Username / Email','text'],
+                  ['email.password','Password / API Key','password'],
+                  ['email.fromName','From Name','text','Hospital eChanneling'],
+                  ['email.fromEmail','From Email','email']
+                ].map(([k,l,t,ph])=>(
+                  <div key={k}>
+                    <label className="label">{l}</label>
+                    <input type={t} className="input" placeholder={ph||''} value={settings.email?.[k.split('.')[1]]||''}
+                      onChange={e=>upd(k,e.target.value)} />
+                  </div>
+                ))}
+              </div>
+              <div className="divide-y" style={{ borderColor:'var(--color-border)' }}>
+                <Toggle value={settings.email?.secure} onChange={v=>upd('email.secure',v)} label="Use SSL/TLS (port 465)" />
+                <Toggle value={settings.email?.autoBilling?.enabled} onChange={v=>upd('email.autoBilling.enabled',v)}
+                  label="Auto Monthly Billing" desc="Send invoice emails to each hospital on 1st of month" />
+              </div>
+              <div className="p-3 rounded-xl flex items-end gap-3" style={{ background:'var(--color-surface2)' }}>
+                <div className="flex-1">
+                  <label className="label">Test Email Address</label>
+                  <input className="input" placeholder="test@example.com" value={testEmail} onChange={e=>setTestEmail(e.target.value)} />
+                </div>
+                <button onClick={sendTestEmail} disabled={testing.email||!testEmail} className="btn-primary flex-shrink-0">
+                  {testing.email?'Sending…':'Send Test'}
+                </button>
+              </div>
+            </>
+          )}
+          <button onClick={save} disabled={saving} className="btn-primary w-full">{saving?'Saving…':'Save Email Settings'}</button>
+        </div>
+      )}
+
+      {/* SMS TAB */}
+      {activeTab==='sms'&&(
+        <div className="card max-w-2xl space-y-4">
+          <div>
+            <h3 className="section-title">SMS Gateway</h3>
+            <p className="text-xs mt-1" style={{ color:'var(--color-text-muted)' }}>
+              Global SMS provider. Each hospital can override with their own WhatsApp settings.
+            </p>
+          </div>
+          <div className="divide-y" style={{ borderColor:'var(--color-border)' }}>
+            <Toggle value={settings.sms?.enabled} onChange={v=>upd('sms.enabled',v)} label="Enable SMS" desc="Sends booking/queue alerts via SMS" />
+          </div>
+          {settings.sms?.enabled&&(
+            <>
+              <div>
+                <label className="label">SMS Provider</label>
+                <select className="input" value={settings.sms?.provider||'twilio'} onChange={e=>upd('sms.provider',e.target.value)}>
+                  <option value="textlk">text.lk (Sri Lanka)</option>
+                  <option value="twilio">Twilio</option>
+                  <option value="nexmo">Vonage (Nexmo)</option>
+                  <option value="aws-sns">AWS SNS</option>
+                  <option value="custom">Custom HTTP API</option>
+                </select>
+              </div>
+              <div className="grid md:grid-cols-2 gap-3">
+                <div><label className="label">API Key / Account SID</label>
+                  <input className="input" value={settings.sms?.apiKey||''} onChange={e=>upd('sms.apiKey',e.target.value)} /></div>
+                <div><label className="label">API Secret / Auth Token</label>
+                  <input type="password" className="input" value={settings.sms?.apiSecret||''} onChange={e=>upd('sms.apiSecret',e.target.value)} /></div>
+                <div><label className="label">Sender ID / Phone Number</label>
+                  <input className="input" placeholder="+14155238886" value={settings.sms?.senderId||''} onChange={e=>upd('sms.senderId',e.target.value)} /></div>
+                {settings.sms?.provider==='custom'&&(
+                  <div><label className="label">API URL</label>
+                    <input className="input" value={settings.sms?.apiUrl||''} onChange={e=>upd('sms.apiUrl',e.target.value)} /></div>
+                )}
+              </div>
+              <div className="p-3 rounded-xl flex items-end gap-3" style={{ background:'var(--color-surface2)' }}>
+                <div className="flex-1">
+                  <label className="label">Test Phone Number</label>
+                  <input className="input" placeholder="+94771234567" value={testSMS} onChange={e=>setTestSMS(e.target.value)} />
+                </div>
+                <button onClick={sendTestSMS} disabled={testing.sms||!testSMS} className="btn-primary flex-shrink-0">
+                  {testing.sms?'Sending…':'Send Test'}
+                </button>
+              </div>
+            </>
+          )}
+          <button onClick={save} disabled={saving} className="btn-primary w-full">{saving?'Saving…':'Save SMS Settings'}</button>
+        </div>
+      )}
+
+      {/* BACKUP TAB */}
+      {activeTab==='backup'&&(
+        <div className="max-w-3xl space-y-4">
+          <div className="card">
+            <h3 className="section-title mb-4">Backup Configuration</h3>
+            <div className="divide-y mb-4" style={{ borderColor:'var(--color-border)' }}>
+              <Toggle value={settings.backup?.enabled} onChange={v=>upd('backup.enabled',v)} label="Auto Backup" desc="Run automatic daily backups" />
+            </div>
+            {settings.backup?.enabled&&(
+              <div className="grid md:grid-cols-3 gap-4 mb-4">
+                <div><label className="label">Backup Time</label>
+                  <input type="time" className="input" value={settings.backup?.scheduleTime||'01:00'} onChange={e=>upd('backup.scheduleTime',e.target.value)} />
+                  <p className="text-xs mt-1" style={{ color:'var(--color-text-muted)' }}>Server local time</p>
+                </div>
+                <div><label className="label">Keep for (days)</label>
+                  <input type="number" className="input" value={settings.backup?.retainDays||30} onChange={e=>upd('backup.retainDays',Number(e.target.value))} /></div>
+                <div><label className="label">Storage</label>
+                  <select className="input" value={settings.backup?.storageType||'local'} onChange={e=>upd('backup.storageType',e.target.value)}>
+                    <option value="local">Local disk</option><option value="network">Network path</option><option value="both">Both</option>
+                  </select>
+                </div>
+                {(settings.backup?.storageType==='network'||settings.backup?.storageType==='both')&&(
+                  <div className="md:col-span-3"><label className="label">Network Path</label>
+                    <input className="input" placeholder="//192.168.1.100/backups or /mnt/nas/backups" value={settings.backup?.networkPath||''} onChange={e=>upd('backup.networkPath',e.target.value)} /></div>
+                )}
+              </div>
+            )}
+            <div className="flex gap-3">
+              <button onClick={save} disabled={saving} className="btn-primary">{saving?'Saving…':'Save Config'}</button>
+              <button onClick={triggerBackup} disabled={backing} className="btn-ghost">
+                {backing?<><span className="animate-spin inline-block mr-1">⟳</span>Creating backup…</>:'▶ Backup Now'}
+              </button>
+            </div>
+          </div>
+
+          {/* Backup list */}
+          <div className="card">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="section-title">Backup Files</h3>
+              <button onClick={()=>api.get('/backup/list').then(r=>setBackups(r.data.backups||[])).catch(()=>{})} className="btn-ghost text-xs">↻ Refresh</button>
+            </div>
+            {backups.length===0?(
+              <div className="text-center py-8" style={{ color:'var(--color-text-muted)' }}>
+                <div className="text-3xl mb-2">💾</div>
+                <p>No backups yet. Click "Backup Now" to create one.</p>
+              </div>
+            ):(
+              <div className="space-y-2">
+                {backups.map((b,i)=>(
+                  <div key={i} className="flex items-center gap-4 p-3 rounded-xl" style={{ background:'var(--color-surface2)' }}>
+                    <div className="text-xl flex-shrink-0">📦</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-sm font-medium font-mono truncate">{b.filename}</p>
+                      <p className="text-xs" style={{ color:'var(--color-text-muted)' }}>
+                        {b.size} · {b.createdAt ? new Date(b.createdAt).toLocaleString() : ''}
+                      </p>
+                    </div>
+                    <div className="flex gap-2 flex-shrink-0">
+                      <a href={'/api/backup/download/'+b.filename} download
+                        className="text-xs px-3 py-1.5 rounded-xl transition-all"
+                        style={{ background:'rgba(var(--color-primary-rgb),0.1)',color:'var(--color-primary)' }}>
+                        ⬇ Download
+                      </a>
+                      <button onClick={()=>restoreBackup(b.filename)} disabled={!!restoring}
+                        className="text-xs px-3 py-1.5 rounded-xl transition-all"
+                        style={{ background:'rgba(245,158,11,0.1)',color:'#f59e0b' }}>
+                        {restoring===b.filename?'Restoring…':'↩ Restore'}
+                      </button>
+                      <button onClick={()=>deleteBackup(b.filename)}
+                        className="text-xs px-2 py-1.5 rounded-xl"
+                        style={{ background:'rgba(239,68,68,0.1)',color:'#ef4444' }}>
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="mt-4 p-3 rounded-xl" style={{ background:'rgba(239,68,68,0.06)', border:'1px solid rgba(239,68,68,0.15)' }}>
+              <p className="text-xs font-semibold mb-1" style={{ color:'#f87171' }}>⚠️ Important — Restore Warning</p>
+              <p className="text-xs" style={{ color:'var(--color-text-muted)' }}>
+                Restoring a backup will replace ALL current data including patients, appointments, and settings. This action cannot be undone. Always download a fresh backup before restoring.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SECURITY TAB */}
+      {activeTab==='security'&&(
+        <div className="card max-w-2xl">
+          <h3 className="section-title mb-4">Security Status</h3>
+          <div className="space-y-1">
+            {[
+              ['Helmet.js HTTP Headers',         'Protection against XSS, clickjacking, MIME sniffing', true],
+              ['Rate Limiting',                  'API: 300/15min · Auth: 15/15min · Bookings: 10/min', true],
+              ['NoSQL Injection Prevention',     'express-mongo-sanitize replaces $ and . in input', true],
+              ['HTTP Parameter Pollution',       'hpp middleware blocks duplicate params', true],
+              ['Response Compression',           'gzip via compression middleware', true],
+              ['JWT Token Authentication',       '7-day expiry, HS256 signed', true],
+              ['Password Hashing',               'bcryptjs with cost factor 12', true],
+              ['CORS Policy',                    'Restricted to FRONTEND_URL env variable', true],
+              ['Doctor Data Isolation',          'Doctors can only access their own patient records', true],
+              ['Hospital Data Isolation',        'All queries scoped by hospitalId', true],
+              ['Audit Logging',                  'Coming in next version', false],
+              ['HTTPS/TLS',                      'Configure in your web server (Nginx/Apache)', null],
+              ['MongoDB Encryption at Rest',     'Enable in MongoDB Atlas or mongod.conf', null],
+            ].map(([l, v, ok])=>(
+              <div key={l} className="flex items-center justify-between py-2.5 border-b" style={{ borderColor:'var(--color-border)' }}>
+                <span className="text-sm" style={{ color:'var(--color-text-muted)' }}>{l}</span>
+                <span className="flex items-center gap-1.5 text-xs font-medium text-right max-w-xs"
+                  style={{ color: ok===true?'#10b981':ok===false?'#f87171':'#94a3b8' }}>
+                  <div className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{ background: ok===true?'#10b981':ok===false?'#f87171':'#64748b' }} />
+                  {v}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-5 p-4 rounded-xl space-y-2" style={{ background:'rgba(var(--color-primary-rgb),0.06)', border:'1px solid rgba(var(--color-primary-rgb),0.2)' }}>
+            <p className="text-sm font-semibold" style={{ color:'var(--color-primary)' }}>Production Checklist</p>
+            {[
+              'Set a strong JWT_SECRET (32+ random characters) in .env',
+              'Enable HTTPS with a valid SSL certificate (Let\'s Encrypt is free)',
+              'Use MongoDB Atlas with encryption at rest enabled',
+              'Set up firewall rules: only allow port 443 (HTTPS) publicly',
+              'Enable MongoDB Atlas IP whitelist to server IP only',
+              'Set NODE_ENV=production in your deployment',
+              'Use a process manager like PM2 to keep server running',
+              'Set up log rotation and monitoring (e.g. Sentry, Datadog)',
+            ].map((t,i)=>(
+              <p key={i} className="text-xs flex items-start gap-2" style={{ color:'var(--color-text-muted)' }}>
+                <span style={{ color:'var(--color-primary)', flexShrink:0 }}>□</span>{t}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

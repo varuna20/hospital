@@ -1,0 +1,10 @@
+import { format, formatDistanceToNow } from 'date-fns';
+export const fDate  = d => d ? format(new Date(d), 'dd MMM yyyy') : '—';
+export const fTime  = d => d ? format(new Date(d), 'h:mm a') : '—';
+export const fMoney = (v, sym='Rs.') => `${sym} ${(v||0).toLocaleString()}`;
+export const timeAgo = d => d ? formatDistanceToNow(new Date(d), { addSuffix: true }) : '—';
+export const todayISO = () => new Date().toISOString().split('T')[0];
+export const statusLabel = s => ({ booked:'Booked', arrived:'Arrived', 'in-progress':'In Progress', completed:'Completed', absent:'Absent', cancelled:'Cancelled' }[s] || s);
+export const statusBadge = s => ({ booked:'badge-booked', arrived:'badge-arrived', 'in-progress':'badge-progress', completed:'badge-completed', absent:'badge-absent', cancelled:'badge-cancelled' }[s] || 'badge-booked');
+export const waitEstimate = (n, mins=15) => n<=0 ? 'Your turn!' : n*mins<60 ? `~${n*mins} min` : `~${Math.floor(n*mins/60)}h ${(n*mins)%60}m`;
+export const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];

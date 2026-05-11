@@ -1,0 +1,239 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   HOSPITAL ECHANNELING — CHEVARA THEME
+   Vibrant deep-space with electric accents — striking & professional
+   ============================================================ */
+:root {
+  /* ── Core brand palette ─────────────────────────────────── */
+  --color-primary:      #00d4aa;        /* Electric teal-mint */
+  --color-primary-rgb:  0,212,170;
+  --color-secondary:    #6c2bd9;        /* Deep violet */
+  --color-accent:       #ff6b35;        /* Vivid coral-orange */
+  --color-accent-rgb:   255,107,53;
+
+  /* ── Dark backgrounds ────────────────────────────────────── */
+  --color-bg:           #07090f;        /* Near-black deep space */
+  --color-surface:      #0f1219;        /* Dark card background */
+  --color-surface2:     #171c27;        /* Slightly lighter */
+  --color-surface3:     #1e2533;        /* Input backgrounds */
+
+  /* ── Borders ─────────────────────────────────────────────── */
+  --color-border:       rgba(0,212,170,0.12);
+
+  /* ── Text ────────────────────────────────────────────────── */
+  --color-text:         #e8edf5;
+  --color-text-muted:   #6b7b8f;
+
+  /* ── Status ──────────────────────────────────────────────── */
+  --color-success:      #00e676;
+  --color-danger:       #ff4757;
+  --color-warning:      #ffab40;
+}
+
+/* ── Reset ────────────────────────────────────────────────── */
+* { box-sizing: border-box; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  margin: 0;
+  overflow-x: hidden;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,212,170,0.25); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,212,170,0.5); }
+
+/* ============================================================
+   COMPONENT LAYER
+   ============================================================ */
+@layer components {
+
+  /* ── Cards ── */
+  .card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 16px;
+    padding: 20px;
+    position: relative;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 16px;
+    background: linear-gradient(135deg, rgba(0,212,170,0.03) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  /* ── Buttons ── */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 font-semibold rounded-xl px-5 py-2.5 transition-all duration-200 cursor-pointer select-none;
+    background: linear-gradient(135deg, #00d4aa, #00a8d4);
+    color: #07090f;
+    box-shadow: 0 4px 20px rgba(0,212,170,0.35);
+    border: none;
+  }
+  .btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 28px rgba(0,212,170,0.5);
+    background: linear-gradient(135deg, #00e5b8, #00bde8);
+  }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 font-medium rounded-xl px-4 py-2 transition-all duration-200 cursor-pointer select-none;
+    background: var(--color-surface2);
+    color: var(--color-text-muted);
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: var(--color-surface3);
+    color: var(--color-text);
+    border-color: rgba(0,212,170,0.3);
+  }
+  .btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── Inputs ── */
+  .input {
+    @apply w-full rounded-xl px-3.5 py-2.5 text-sm outline-none transition-all;
+    background: var(--color-surface2);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: var(--color-text);
+  }
+  .input:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(0,212,170,0.12);
+  }
+  .input::placeholder { color: var(--color-text-muted); }
+
+  select.input option { background: #171c27; color: #e8edf5; }
+
+  .label {
+    @apply block text-xs font-semibold mb-1.5 uppercase tracking-wider;
+    color: var(--color-text-muted);
+  }
+
+  /* ── Navigation ── */
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer w-full;
+    color: var(--color-text-muted);
+  }
+  .nav-item:hover { background: rgba(0,212,170,0.08); color: var(--color-text); }
+  .nav-item-active {
+    background: rgba(0,212,170,0.12);
+    color: var(--color-primary);
+    border-left: 3px solid var(--color-primary);
+  }
+
+  /* ── Page titles ── */
+  .page-title {
+    @apply text-2xl font-bold text-white;
+    font-family: 'Sora', sans-serif;
+    background: linear-gradient(135deg, #00d4aa, #00a8d4);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .section-title {
+    @apply text-sm font-bold uppercase tracking-widest;
+    color: var(--color-primary);
+  }
+
+  /* ── Stat cards ── */
+  .stat-card {
+    @apply card flex flex-col gap-1;
+  }
+  .stat-value  { @apply text-3xl font-black; font-family: 'Sora',sans-serif; }
+  .stat-label  { @apply text-xs uppercase tracking-widest; color: var(--color-text-muted); }
+
+  /* ── Tables ── */
+  .table-header {
+    @apply text-left text-xs font-bold uppercase tracking-widest px-4 py-3;
+    color: var(--color-primary);
+    background: rgba(0,212,170,0.06);
+  }
+  .table-cell { @apply px-4 py-3; }
+
+  /* ── Badges ── */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold;
+  }
+  .badge-completed { background: rgba(0,230,118,0.15); color: #00e676; }
+  .badge-arrived   { background: rgba(255,171,64,0.15); color: #ffab40; }
+  .badge-progress  { background: rgba(0,212,170,0.15);  color: #00d4aa; }
+  .badge-booked    { background: rgba(108,43,217,0.2);  color: #a78bfa; }
+  .badge-absent    { background: rgba(255,71,87,0.15);  color: #ff6b6b; }
+  .badge-cancelled { background: rgba(107,123,143,0.15); color: #6b7b8f; }
+
+  /* ── Font utils ── */
+  .font-signage { font-family: 'Sora', 'DM Sans', system-ui, sans-serif; }
+  .font-body    { font-family: 'DM Sans', system-ui, sans-serif; }
+}
+
+/* ============================================================
+   SIGNAGE DISPLAY SCREEN
+   ============================================================ */
+.signage-body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+/* Number flip animation */
+.number-flip { animation: numberFlip 0.5s cubic-bezier(0.4,0,0.2,1); }
+
+/* Scrolling ticker */
+.ticker-wrap    { overflow: hidden; white-space: nowrap; }
+.ticker-content { display: inline-block; animation: ticker 35s linear infinite; }
+
+/* Glowing queue card */
+.queue-glow { box-shadow: 0 0 60px rgba(0,212,170,0.15), inset 0 0 60px rgba(0,212,170,0.03); }
+
+/* Row animation */
+.row-enter { animation: rowEnter 0.3s ease-out; }
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+@keyframes numberFlip {
+  0%   { opacity:0; transform: translateY(-30px) scale(0.85); }
+  60%  { opacity:1; transform: translateY(5px) scale(1.04); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+@keyframes ticker {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(-100%); }
+}
+
+@keyframes rowEnter {
+  from { opacity:0; transform: translateX(-10px); }
+  to   { opacity:1; transform: translateX(0); }
+}
+
+@keyframes breathe {
+  0%,100% { opacity:1; transform:scale(1); }
+  50%      { opacity:0.85; transform:scale(0.98); }
+}
+
+@keyframes slideUp {
+  from { opacity:0; transform: translateY(16px); }
+  to   { opacity:1; transform: translateY(0); }
+}
+
+@keyframes pulseGlow {
+  0%,100% { box-shadow: 0 0 20px rgba(0,212,170,0.3); }
+  50%      { box-shadow: 0 0 50px rgba(0,212,170,0.7); }
+}
+
+.animate-slide-up    { animation: slideUp 0.35s ease-out; }
+.animate-breathe     { animation: breathe 2.5s ease-in-out infinite; }
+.animate-pulse-glow  { animation: pulseGlow 2s ease-in-out infinite; }
