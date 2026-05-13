@@ -46,7 +46,13 @@ async function initDefaults() {
   // ── System settings ─────────────────────────────────────────────
   const settingsCount = await SystemSettings.countDocuments();
   if (settingsCount === 0) {
-    await SystemSettings.create({});
+    await SystemSettings.create({
+      branding: {
+        brandName: 'Chevara Labs',
+        footerText: 'Powered by',
+        website: 'https://chevaralabs.com'
+      }
+    });
     console.log('✅ Default system settings created');
   }
 

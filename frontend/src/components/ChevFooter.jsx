@@ -1,7 +1,12 @@
 import React from 'react';
+import { useAuth } from '../context/AuthContext';
+import { fUrl } from '../utils/api';
 import logoImg from '/chevara-brand.png';
 
 export default function ChevFooter({ minimal = false }) {
+  const { systemSettings } = useAuth();
+  const branding = systemSettings?.branding || {};
+  
   const style = {
     wrapper: {
       textAlign: 'center',
@@ -45,14 +50,19 @@ export default function ChevFooter({ minimal = false }) {
     }
   };
 
+  const displayLogo = branding.logo ? fUrl(branding.logo) : logoImg;
+  const displayText = branding.footerText || 'Powered by';
+  const displayBrand = branding.brandName || 'Chevara Labs';
+  const displayLink = branding.website || 'https://chevaralabs.com';
+
   return (
     <div style={style.wrapper}>
-      <a href="https://chevaralabs.com" target="_blank" rel="noreferrer" style={style.link}
+      <a href={displayLink} target="_blank" rel="noreferrer" style={style.link}
         onMouseEnter={e => e.currentTarget.style.opacity = '1'}
         onMouseLeave={e => e.currentTarget.style.opacity = '0.7'}>
-        <span style={style.text}>Powered by</span>
+        <span style={style.text}>{displayText}</span>
         <div style={style.badge}>
-          <img src={logoImg} alt="Chevara Labs" style={style.logo} />
+          <img src={displayLogo} alt={displayBrand} style={style.logo} />
         </div>
       </a>
     </div>

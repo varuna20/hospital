@@ -6,8 +6,17 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user,    setUser]    = useState(null);
   const [loading, setLoading] = useState(true);
+  const [systemSettings, setSystemSettings] = useState(null);
+
+  const fetchSystemSettings = async () => {
+    try {
+      const { data } = await api.get('/system/settings');
+      if (data.success) setSystemSettings(data.settings);
+    } catch (e) { console.warn('System settings fetch failed'); }
+  };
 
   useEffect(() => {
+    fetchSystemSettings();
     try {
       const token = localStorage.getItem('token');
       const saved = localStorage.getItem('user');
@@ -52,7 +61,7 @@ export function AuthProvider({ children }) {
   const hospital = user?.hospital || null;
 
   return (
-    <AuthContext.Provider value={{ user, hospital, login, logout, updateHospital, loading }}>
+    <AuthContext.Provider value={{ user, hospital, login, logout, updateHospital, systemSettings, fetchSystemSettings, loading }}>
       {children}
     </AuthContext.Provider>
   );

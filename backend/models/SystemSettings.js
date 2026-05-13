@@ -100,6 +100,14 @@ const systemSettingsSchema = new mongoose.Schema({
     sessionHours:       { type: Number, default: 8 },
     requireStrongPassword: { type: Boolean, default: true },
     twoFactorEnabled:   { type: Boolean, default: false }
+  },
+  
+  // ── Branding ──────────────────────────────────────────────────
+  branding: {
+    logo:        String,
+    brandName:   { type: String, default: 'Chevara Labs' },
+    website:     { type: String, default: 'https://chevaralabs.com' },
+    footerText:  { type: String, default: 'Powered by' }
   }
 
 }, { timestamps: true });

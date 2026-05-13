@@ -2,7 +2,7 @@ import ChevFooter from '../components/ChevFooter.jsx';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import api from '../utils/api';
+import api, { fUrl } from '../utils/api';
 import toast from 'react-hot-toast';
 
 export default function LoginPage() {
@@ -12,13 +12,14 @@ export default function LoginPage() {
   const [password,    setPassword]     = useState('');
   const [loading,     setLoading]      = useState(false);
   const [isSuperMode, setIsSuperMode]  = useState(false);
-  const { login, user }               = useAuth();
+  const { login, user, systemSettings } = useAuth();
   const navigate                      = useNavigate();
+  const branding                      = systemSettings?.branding || {};
 
   // Redirect if already logged in
   useEffect(() => {
     if (user) { const m={superadmin:'/super',admin:'/admin',staff:'/staff',doctor:'/doctor'}; navigate(m[user.role]||'/'); }
-  }, [user]);
+  }, [user, navigate]);
 
   // Load hospital list
   useEffect(() => {
@@ -81,7 +82,7 @@ export default function LoginPage() {
 
         <div className="relative z-10 text-center mb-8">
           {selectedH?.logo ? (
-            <img src={selectedH.logo} alt="Hospital Logo" className="w-24 h-24 object-contain mx-auto mb-4 rounded-2xl" />
+            <img src={fUrl(selectedH.logo)} alt="Hospital Logo" className="w-24 h-24 object-contain mx-auto mb-4 rounded-2xl" />
           ) : (
             <div className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl font-bold text-white"
               style={{ background: theme.primary }}>
@@ -154,7 +155,7 @@ export default function LoginPage() {
 
           {/* Chevara logo above card */}
           <div className="flex justify-center mb-5">
-            <img src="/chevara-logo.png" alt="Chevara Labs" style={{ height:36, objectFit:'contain', opacity:0.8 }} />
+            <img src={branding.logo ? fUrl(branding.logo) : '/chevara-logo.png'} alt={branding.brandName || 'Chevara Labs'} style={{ height:36, objectFit:'contain', opacity:0.8 }} />
           </div>
 
           <div className="card" style={{ borderColor: `${theme.primary}33` }}>

@@ -20,8 +20,64 @@ const Patient  = require('../models/Patient');
 const Appointment = require('../models/Appointment');
 const { protect, superAdminOnly } = require('../middleware/auth');
 
+const { SystemSettings } = require('../models/SystemSettings');
+const multer   = require('multer');
+const path     = require('path');
+const fs       = require('fs');
+
 // All routes require superadmin
 router.use(protect, superAdminOnly);
+
+// ── Multer for Global Logo ───────────────────────────────────────
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, '../uploads/branding');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, 'global_logo_' + Date.now() + path.extname(file.originalname));
+  }
+});
+
+const logoUpload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Invalid file type'));
+  }
+});
+
+// ── Global Logo Upload ───────────────────────────────────────────
+router.post('/system/logo', logoUpload.single('logo'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
+    const logoPath = '/uploads/branding/' + req.file.filename;
+    
+    let settings = await SystemSettings.findOne();
+    if (!settings) settings = new SystemSettings();
+    
+    settings.branding = settings.branding || {};
+    settings.branding.logo = logoPath;
+    await settings.save();
+    
+    res.json({ success: true, logo: logoPath });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// ── Update Global Branding ────────────────────────────────────────
+router.put('/system/branding', async (req, res) => {
+  try {
+    let settings = await SystemSettings.findOne();
+    if (!settings) settings = new SystemSettings();
+    
+    settings.branding = { ...settings.branding, ...req.body };
+    await settings.save();
+    
+    res.json({ success: true, branding: settings.branding });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
 
 // ── System Stats ──────────────────────────────────────────────────
 router.get('/stats', async (req, res) => {
