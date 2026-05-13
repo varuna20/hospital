@@ -8,11 +8,13 @@ const symptomMap = {
   'eye': 'Ophthalmologist', 'vision': 'Ophthalmologist', 'glasses': 'Ophthalmologist',
   'heart': 'Cardiologist', 'chest': 'Cardiologist', 'pressure': 'Cardiologist',
   'skin': 'Dermatologist', 'rash': 'Dermatologist', 'pimple': 'Dermatologist',
-  'child': 'Pediatrician', 'baby': 'Pediatrician', 'kid': 'Pediatrician',
+  'child': 'Pediatrician', 'baby': 'Pediatrician', 'kid': 'Pediatrician', 'pediatric': 'Pediatrician', 'pediatrics': 'Pediatrician',
   'ear': 'ENT', 'nose': 'ENT', 'throat': 'ENT', 'cold': 'ENT',
   'bone': 'Orthopedic', 'fracture': 'Orthopedic', 'back': 'Orthopedic',
   'mental': 'Psychiatrist', 'stress': 'Psychiatrist', 'sleep': 'Psychiatrist',
-  'tooth': 'Dentist', 'teeth': 'Dentist', 'gum': 'Dentist'
+  'tooth': 'Dentist', 'teeth': 'Dentist', 'gum': 'Dentist',
+  'gyn': 'Gynecologist', 'pregnant': 'Gynecologist', 'pregnancy': 'Gynecologist',
+  'neuro': 'Neurologist', 'brain': 'Neurologist', 'nerve': 'Neurologist'
 };
 
 /**
@@ -22,7 +24,7 @@ const symptomMap = {
  * @param {string} body - The message content
  */
 async function processMessage(from, to, body) {
-  const text = body.trim().toLowerCase();
+  const text = (body || '').trim().toLowerCase();
   
   // 1. Identify the Hospital
   // If user says "join [slug]", we find that hospital
@@ -59,8 +61,13 @@ async function processMessage(from, to, body) {
   }
 
   // 1. FIND DOCTORS (Enhanced)
-  if (text === '1' || text.includes('doctor') || text.includes('specialist') || text.includes('available') || intentQuery !== text) {
-    let query = intentQuery.replace(/doctors|doctor|find|search|available|who is the best|is there any|for my|my|hurts|pain/g, '').trim();
+  if (text === '1' || text.includes('doctor') || text.includes('specialist') || text.includes('available') || text.includes('channel') || text.includes('book') || intentQuery !== text) {
+    
+    // Strip common conversational filler words
+    const stopWords = ['i', 'need', 'want', 'to', 'channel', 'book', 'an', 'a', 'the', 'doctor', 'doctors', 'specialist', 'specialists', 'find', 'search', 'available', 'who', 'is', 'best', 'my', 'hurts', 'pain', 'for', 'with', 'some', 'any'];
+    let keywords = intentQuery.split(/\s+/).filter(w => !stopWords.includes(w)).join(' ').trim();
+    
+    let query = keywords || intentQuery;
     if (!query || query === '1') return `Please tell me the specialization or illness you are looking for (e.g., Eye, Heart, Skin).`;
     
     const doctors = await Doctor.find({

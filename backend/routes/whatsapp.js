@@ -7,6 +7,11 @@ const { processMessage } = require('../utils/chatbot');
  * WEBHOOK: /api/whatsapp/webhook
  * Handled incoming messages from Twilio
  */
+// GET: /api/whatsapp/webhook (For testing in browser)
+router.get('/webhook', (req, res) => {
+  res.send('WhatsApp Webhook is ALIVE! Please use POST for actual messages.');
+});
+
 router.post('/webhook', async (req, res) => {
   const { Body, From, To } = req.body;
 
