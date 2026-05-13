@@ -81,26 +81,6 @@ async function processMessage(from, to, body) {
     resp += `👉 *To Book:* ${process.env.FRONTEND_URL}/login/${hospital.slug}`;
     return resp;
   }
-    const doctors = await Doctor.find({
-      hospitalId: hospital._id,
-      isActive: true,
-      $or: [
-        { specialization: { $regex: query, $options: 'i' } },
-        { name: { $regex: query, $options: 'i' } }
-      ]
-    }).limit(5);
-
-    if (doctors.length === 0) {
-      return `I couldn't find any doctors for "${query}". Try another term like 'Eye' or 'General'.`;
-    }
-
-    let resp = `🔍 *Available Doctors for ${query}:*\n\n`;
-    doctors.forEach((d, i) => {
-      resp += `${i+1}. *${d.name}*\n   ${d.specialization}\n   Room: ${d.room || 'TBD'}\n\n`;
-    });
-    resp += `To book, please visit: ${process.env.FRONTEND_URL || 'https://echanneling.app'}/login/${hospital.slug}`;
-    return resp;
-  }
 
   // 2. QUEUE STATUS
   if (text === '2' || text.includes('queue') || text.includes('number') || text.includes('status')) {
