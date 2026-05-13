@@ -34,10 +34,11 @@ function formatPhone(phone) {
       .join(',');
   }
 
-  let p = phone.toString().replace(/\s+|-/g, '').trim();
-  if (p.startsWith('+')) p = p.slice(1);
+  let p = phone.toString().replace(/\s+|-/g, '').trim().replace(/\+/g, '');
   if (p.startsWith('0'))  p = '94' + p.slice(1);
-  if (!p.startsWith('94')) p = '94' + p;
+  // If it's a 9 digit number like 771234567, prepend 94
+  if (p.length === 9) p = '94' + p;
+  
   return p;
 }
 
@@ -162,9 +163,10 @@ async function sendHospitalSms({ hospitalId, to, message, type = 'plain', templa
       type: 'sms',
       recipient: to,
       message: finalMessage,
-      status: 'sent',
+      status: (result?.status === 'success' || result?.status === true || result?.message === 'Success') ? 'sent' : 'failed',
       provider: 'textlk',
       providerResponse: result,
+      error: (result?.status !== 'success' && result?.message) ? result.message : null,
       metadata: { templateType, ...templateData }
     }).catch(e => console.error('Log Error:', e.message));
 

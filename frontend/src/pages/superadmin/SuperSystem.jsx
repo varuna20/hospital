@@ -8,7 +8,7 @@
  *  - Security overview
  */
 import React, { useState, useEffect } from 'react';
-import api from '../../utils/api';
+import api, { fUrl } from '../../utils/api';
 import toast from 'react-hot-toast';
 import { fDate } from '../../utils/helpers';
 
@@ -165,7 +165,7 @@ export default function SuperSystem() {
               <label className="label mb-2">Global Logo</label>
               <div className="w-32 h-32 rounded-2xl bg-black flex items-center justify-center overflow-hidden border border-white/10">
                 {settings.branding?.logo ? (
-                  <img src={settings.branding.logo} alt="Logo" className="max-w-full max-h-full object-contain" />
+                  <img src={fUrl(settings.branding.logo)} alt="Logo" className="max-w-full max-h-full object-contain" />
                 ) : (
                   <span className="text-white/20 text-xs">No Logo</span>
                 )}

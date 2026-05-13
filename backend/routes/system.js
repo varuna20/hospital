@@ -12,6 +12,14 @@ const router  = express.Router();
 const { SystemSettings } = require('../models/SystemSettings');
 const { protect, superAdminOnly } = require('../middleware/auth');
 
+// Public route for branding (logo, name)
+router.get('/branding', async (req, res) => {
+  try {
+    const s = await SystemSettings.findOne().select('branding');
+    res.json({ success: true, branding: s?.branding || {} });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
 router.use(protect, superAdminOnly);
 
 // Get settings

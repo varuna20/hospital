@@ -8,7 +8,11 @@ api.interceptors.request.use(cfg => {
   return cfg;
 });
 api.interceptors.response.use(r => r, err => {
-  if (err.response?.status === 401) { localStorage.clear(); window.location.href = '/login'; }
+  const isPublic = err.config?.url?.includes('/system/branding') || err.config?.url?.includes('/hospitals');
+  if (err.response?.status === 401 && !isPublic) { 
+    localStorage.clear(); 
+    if (window.location.pathname !== '/login') window.location.href = '/login'; 
+  }
   return Promise.reject(err);
 });
 

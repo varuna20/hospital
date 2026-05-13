@@ -10,9 +10,9 @@ export function AuthProvider({ children }) {
 
   const fetchSystemSettings = async () => {
     try {
-      const { data } = await api.get('/system/settings');
-      if (data.success) setSystemSettings(data.settings);
-    } catch (e) { console.warn('System settings fetch failed'); }
+      const { data } = await api.get('/system/branding');
+      if (data.success) setSystemSettings({ branding: data.branding });
+    } catch (e) { console.warn('System branding fetch failed'); }
   };
 
   useEffect(() => {

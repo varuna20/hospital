@@ -19,9 +19,15 @@ const twilio = require('twilio');
 
 // Format phone for WhatsApp: +94771234567 → whatsapp:+94771234567
 function formatWhatsApp(phone) {
-  let p = phone.replace(/\s/g, '').replace(/-/g, '');
-  if (!p.startsWith('+')) p = '+94' + p.replace(/^0/, ''); // Default Sri Lanka
-  return `whatsapp:${p}`;
+  if (!phone) return '';
+  let p = phone.toString().replace(/\s/g, '').replace(/-/g, '').replace(/\+/g, '');
+  
+  // If it starts with 0, replace with 94
+  if (p.startsWith('0')) p = '94' + p.slice(1);
+  // If it doesn't start with 94 and is 9 digits (SL number), add 94
+  else if (!p.startsWith('94') && p.length === 9) p = '94' + p;
+  
+  return `whatsapp:+${p}`;
 }
 
 /**
