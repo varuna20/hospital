@@ -12,8 +12,83 @@ import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { statusBadge, statusLabel, fMoney } from '../../utils/helpers';
 
+// ── SMS Message Modal ─────────────────────────────────────────────
+function MessageModal({ apt, onClose }) {
+  const { hospital } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+  
+  const templates = [
+    { label: 'Come to Room', text: `Hi ${apt.patient?.name}, please proceed to Dr. ${apt.doctor?.name}'s room (Q#${apt.queueNumber}) now. Thank you.` },
+    { label: 'Next in Queue', text: `Hi ${apt.patient?.name}, you are next in queue for Dr. ${apt.doctor?.name}. Please be ready near the room.` },
+    { label: 'Slight Delay', text: `Hi ${apt.patient?.name}, there is a slight delay in Dr. ${apt.doctor?.name}'s session. We appreciate your patience.` },
+    { label: 'Check-in', text: `Hi ${apt.patient?.name}, please come to the reception for a quick check-in for your appointment with Dr. ${apt.doctor?.name}.` }
+  ];
+
+  const send = async () => {
+    if (!message.trim()) return toast.error('Message cannot be empty');
+    setLoading(true);
+    try {
+      await api.post('/hospitals/send-manual-sms', {
+        to: apt.patient?.phone,
+        message: message,
+        hospitalId: hospital?._id
+      });
+      toast.success('Message sent!');
+      onClose();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to send');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="card max-w-lg w-full shadow-2xl">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="section-title">Send SMS to Patient</h3>
+          <button onClick={onClose} className="text-xl opacity-50 hover:opacity-100">✕</button>
+        </div>
+
+        <div className="mb-4 p-3 rounded-xl bg-white/5 border border-white/10">
+          <p className="text-white font-bold text-sm">{apt.patient?.name}</p>
+          <p className="text-xs text-muted">Q#{apt.queueNumber} · {apt.patient?.phone}</p>
+        </div>
+
+        <div className="mb-4">
+          <label className="label">Quick Templates</label>
+          <div className="grid grid-cols-2 gap-2">
+            {templates.map(t => (
+              <button key={t.label} onClick={() => setMessage(t.text)}
+                className="text-[10px] text-left p-2 rounded-lg border border-white/10 hover:bg-primary/20 transition-colors">
+                <span className="font-bold block mb-0.5">{t.label}</span>
+                <span className="text-muted truncate block">{t.text}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mb-5">
+          <label className="label">Message Content</label>
+          <textarea className="input min-h-[100px] text-sm" value={message} onChange={e => setMessage(e.target.value)}
+            placeholder="Type your custom message here..." />
+          <p className="text-[10px] mt-1 text-right text-muted">{message.length} characters</p>
+        </div>
+
+        <div className="flex gap-3">
+          <button onClick={send} disabled={loading || !message} className="btn-primary flex-1">
+            {loading ? 'Sending...' : '🚀 Send Message'}
+          </button>
+          <button onClick={onClose} className="btn-ghost">Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Status action buttons ──────────────────────────────────────────
-function StatusActions({ apt, onUpdate, onRefundRequest }) {
+function StatusActions({ apt, onUpdate, onRefundRequest, onSendMessage }) {
   const map = {
     booked:        [{ l:'✓ Arrived', s:'arrived',     bg:'rgba(234,179,8,0.15)', c:'#eab308' }, { l:'Absent', s:'absent', bg:'rgba(239,68,68,0.15)', c:'#ef4444' }],
     arrived:       [{ l:'▶ Start',   s:'in-progress', bg:'var(--color-primary)', c:'white', primary:true }, { l:'Absent', s:'absent', bg:'rgba(239,68,68,0.15)', c:'#ef4444' }],
@@ -41,6 +116,13 @@ function StatusActions({ apt, onUpdate, onRefundRequest }) {
       {apt.refund?.status && apt.refund.status !== 'none' && (
         <RefundBadge refund={apt.refund} apt={apt} />
       )}
+      
+      {/* Message button */}
+      <button onClick={() => onSendMessage(apt)}
+        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors"
+        title="Send SMS">
+        <span>💬</span>
+      </button>
     </div>
   );
 }
@@ -189,6 +271,7 @@ export default function StaffQueue() {
   const [loading, setLoading] = useState(false);
   const [showSession, setShowSession] = useState(false);
   const [refundApt, setRefundApt] = useState(null);
+  const [messageApt, setMessageApt] = useState(null);
   const sym = hospital?.payment?.currencySymbol || 'Rs.';
 
   // Load doctors
@@ -299,6 +382,7 @@ export default function StaffQueue() {
   return (
     <div>
       {refundApt && <RefundModal apt={refundApt} onClose={() => setRefundApt(null)} onDone={fetchQ} />}
+      {messageApt && <MessageModal apt={messageApt} onClose={() => setMessageApt(null)} />}
 
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
@@ -438,7 +522,7 @@ export default function StaffQueue() {
                         </span>
                       </td>
                       <td className="table-cell">
-                        <StatusActions apt={apt} onUpdate={updateStatus} onRefundRequest={setRefundApt} />
+                        <StatusActions apt={apt} onUpdate={updateStatus} onRefundRequest={setRefundApt} onSendMessage={setMessageApt} />
                       </td>
                     </tr>
                   );

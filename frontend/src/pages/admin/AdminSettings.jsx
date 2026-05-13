@@ -71,7 +71,7 @@ const TARGET_TYPES = [
 ];
 
 export default function AdminSettings() {
-  const { hospital } = useAuth();
+  const { hospital, updateHospital } = useAuth();
   const hid = hospital?._id;
   const [s, setS] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -113,6 +113,7 @@ export default function AdminSettings() {
       const { data } = await api.put('/hospitals/'+hid, s); 
       if (data.success) {
         setS(data.hospital);
+        updateHospital(data.hospital); // Refresh global state for theme/branding
         toast.success('Saved!'); 
       }
     }

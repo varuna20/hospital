@@ -101,7 +101,7 @@ function SlideCard({ item, onToggle, onDelete, onDurationChange, onCaptionChange
 
 // ── Main component ──────────────────────────────────────────────────
 export default function AdminMedia() {
-  const { hospital } = useAuth();
+  const { hospital, updateHospital } = useAuth();
   const hid = hospital?._id;
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -123,6 +123,7 @@ export default function AdminMedia() {
           setData(d.hospital);
           setAnnouncement(d.hospital?.queueSettings?.announcement || '');
           setTemplates(d.hospital?.queueSettings?.announcementTemplates || []);
+          updateHospital(d.hospital); // Refresh global branding/theme
         }
       })
       .catch(() => {})

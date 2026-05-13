@@ -23,7 +23,17 @@ try {
   hpp            = require('hpp');
   rateLimit      = require('express-rate-limit');
   compression    = require('compression');
-  app.use(helmet({ crossOriginEmbedderPolicy: false }));
+  app.use(helmet({
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: {
+      directives: {
+        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+        "img-src": ["*", "data:", "blob:"],
+        "media-src": ["*", "data:", "blob:"],
+        "connect-src": ["'self'", "*"],
+      },
+    },
+  }));
   app.use(mongoSanitize({ replaceWith: '_' }));
   app.use(hpp({ whitelist: ['status','role','doctorId','hospitalId'] }));
   app.use(compression());

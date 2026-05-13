@@ -364,4 +364,24 @@ router.post('/test-sms', protect, authorize('admin', 'superadmin'), async (req, 
   }
 });
 
+// ── Send Manual SMS (Staff/Admin) ──────────────────────────────────
+router.post('/send-manual-sms', protect, authorize('staff', 'admin', 'superadmin'), async (req, res) => {
+  try {
+    const { to, message, hospitalId: bodyHid } = req.body;
+    const hid = req.user.role === 'superadmin' ? bodyHid : req.user.hospitalId?._id;
+    
+    if (!to || !message) return res.status(400).json({ success: false, message: 'Recipient and message required' });
+
+    const result = await sendHospitalSms({
+      hospitalId: hid,
+      to,
+      message: message // Raw message override
+    });
+
+    res.json({ success: true, message: 'SMS sent successfully', result });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;

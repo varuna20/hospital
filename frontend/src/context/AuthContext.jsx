@@ -42,10 +42,17 @@ export function AuthProvider({ children }) {
     window.location.href = '/login';
   };
 
+  const updateHospital = (newHospitalData) => {
+    if (!user) return;
+    const updatedUser = { ...user, hospital: newHospitalData };
+    setUser(updatedUser);
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+  };
+
   const hospital = user?.hospital || null;
 
   return (
-    <AuthContext.Provider value={{ user, hospital, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, hospital, login, logout, updateHospital, loading }}>
       {children}
     </AuthContext.Provider>
   );
