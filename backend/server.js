@@ -102,6 +102,8 @@ app.use('/api/whatsapp',      require('./routes/whatsapp'));
 app.use('/api/prescriptions', require('./routes/prescriptions'));
 app.use('/api/display',       require('./routes/displayRoute'));
 app.use('/api/system',        require('./routes/system'));
+app.use('/api/whatsapp',      require('./routes/whatsapp'));
+app.use('/api/billing',       require('./routes/billing'));
 app.use('/api/subscriptions', require('./routes/subscriptions'));
 app.use('/api/drugs',         require('./routes/drugs'));
 
