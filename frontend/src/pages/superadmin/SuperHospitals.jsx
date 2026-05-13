@@ -246,7 +246,7 @@ export default function SuperHospitals() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between mb-6 gap-3">
         <div>
           <h1 className="page-title">Hospitals</h1>
           <p className="text-sm" style={{ color:'var(--color-text-muted)' }}>{hospitals.length} registered</p>

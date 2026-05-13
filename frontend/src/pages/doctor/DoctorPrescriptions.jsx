@@ -131,7 +131,7 @@ export default function DoctorPrescriptions() {
     <div>
       {historyPatient && <PatientHistory patient={historyPatient} prescriptions={historyRx} onClose={() => setHistoryPatient(null)} />}
 
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex flex-wrap items-center justify-between mb-5 gap-3">
         <div>
           <h1 className="page-title">Prescriptions</h1>
           <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>My patients only · Doctor-scoped view</p>

@@ -60,7 +60,7 @@ export default function SuperSubscriptions() {
   const del=async(id)=>{ if(!window.confirm('Delete?'))return; try{await api.delete('/subscriptions/'+id);fetch();toast.success('Deleted');}catch{toast.error('Cannot delete plan in use');} };
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between mb-6 gap-3">
         <div><h1 className="page-title">Subscription Plans</h1><p className="text-sm" style={{ color:'var(--color-text-muted)' }}>Manage feature sets and per-booking commissions</p></div>
         <button onClick={()=>{setShowForm(true);setEditPlan(null);}} className="btn-primary">+ New Plan</button>
       </div>
