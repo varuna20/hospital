@@ -200,43 +200,45 @@ export default function DoctorDashboard() {
             <div className="text-4xl mb-2">📅</div><p>No appointments {selSession?'in this session':'today'}</p>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead><tr style={{ background:'var(--color-surface2)',borderBottom:'1px solid var(--color-border)' }}>
-              {['#','Patient','Session','Status','Payment',''].map(h=><th key={h} className="table-header">{h}</th>)}
-            </tr></thead>
-            <tbody>
-              {apts.map(a=>(
-                <tr key={a._id} style={{ borderBottom:'1px solid var(--color-border)',background:a.status==='in-progress'?'rgba(var(--color-primary-rgb),0.05)':'transparent' }}>
-                  <td className="table-cell font-bold text-white">#{a.queueNumber}</td>
-                  <td className="table-cell">
-                    <p className="text-white">{a.patient?.name}</p>
-                    <p className="text-xs" style={{ color:'var(--color-text-muted)' }}>{a.patient?.phone}</p>
-                  </td>
-                  <td className="table-cell">
-                    <p className="text-xs" style={{ color: 'var(--color-primary)' }}>{a.sessionLabel || 'General'}</p>
-                  </td>
-                  <td className="table-cell"><span className={statusBadge(a.status)}>{statusLabel(a.status)}</span></td>
-                  <td className="table-cell">
-                    <p className="text-xs capitalize" style={{ color:a.paymentStatus==='paid'?'#10b981':a.paymentStatus==='refunded'?'#f87171':'var(--color-text-muted)' }}>
-                      {a.paymentStatus}
-                    </p>
-                    {a.refund?.status&&a.refund.status!=='none'&&(
-                      <p className="text-xs" style={{ color:'#f59e0b' }}>↩ Refund: {a.refund.status}</p>
-                    )}
-                  </td>
-                  <td className="table-cell text-right">
-                    {['completed','in-progress','arrived'].includes(a.status) && (
-                      <Link to={`/doctor/prescriptions/new?patientId=${a.patient?._id}&appointmentId=${a._id}`}
-                        className="text-[10px] px-2 py-1 rounded-lg font-bold"
-                        style={{ background:'rgba(var(--color-primary-rgb),0.1)',color:'var(--color-primary)' }}>
-                        💊 Rx
-                      </Link>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[650px]">
+              <thead><tr style={{ background:'var(--color-surface2)',borderBottom:'1px solid var(--color-border)' }}>
+                {['#','Patient','Session','Status','Payment',''].map(h=><th key={h} className="table-header">{h}</th>)}
+              </tr></thead>
+              <tbody>
+                {apts.map(a=>(
+                  <tr key={a._id} style={{ borderBottom:'1px solid var(--color-border)',background:a.status==='in-progress'?'rgba(var(--color-primary-rgb),0.05)':'transparent' }}>
+                    <td className="table-cell font-bold text-white">#{a.queueNumber}</td>
+                    <td className="table-cell">
+                      <p className="text-white">{a.patient?.name}</p>
+                      <p className="text-xs" style={{ color:'var(--color-text-muted)' }}>{a.patient?.phone}</p>
+                    </td>
+                    <td className="table-cell">
+                      <p className="text-xs" style={{ color: 'var(--color-primary)' }}>{a.sessionLabel || 'General'}</p>
+                    </td>
+                    <td className="table-cell"><span className={statusBadge(a.status)}>{statusLabel(a.status)}</span></td>
+                    <td className="table-cell">
+                      <p className="text-xs capitalize" style={{ color:a.paymentStatus==='paid'?'#10b981':a.paymentStatus==='refunded'?'#f87171':'var(--color-text-muted)' }}>
+                        {a.paymentStatus}
+                      </p>
+                      {a.refund?.status&&a.refund.status!=='none'&&(
+                        <p className="text-xs" style={{ color:'#f59e0b' }}>↩ Refund: {a.refund.status}</p>
+                      )}
+                    </td>
+                    <td className="table-cell text-right">
+                      {['completed','in-progress','arrived'].includes(a.status) && (
+                        <Link to={`/doctor/prescriptions/new?patientId=${a.patient?._id}&appointmentId=${a._id}`}
+                          className="text-[10px] px-2 py-1 rounded-lg font-bold"
+                          style={{ background:'rgba(var(--color-primary-rgb),0.1)',color:'var(--color-primary)' }}>
+                          💊 Rx
+                        </Link>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

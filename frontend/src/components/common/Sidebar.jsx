@@ -33,7 +33,7 @@ const NAV = {
   ],
 };
 
-export default function Sidebar() {
+export default function Sidebar({ mobileOpen, setMobileOpen }) {
   const { user, hospital, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const items = NAV[user?.role] || [];
@@ -41,8 +41,14 @@ export default function Sidebar() {
   const primary = theme.primary || 'var(--color-primary)';
 
   return (
-    <aside className="flex flex-col min-h-screen transition-all duration-300 relative flex-shrink-0"
-      style={{ width: collapsed ? '64px' : '220px', background: 'var(--color-surface)', borderRight: '1px solid var(--color-border)' }}>
+    <>
+      {/* Backdrop for mobile */}
+      {mobileOpen && (
+        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setMobileOpen(false)} />
+      )}
+
+      <aside className={`flex flex-col h-screen transition-all duration-300 fixed lg:relative z-50 flex-shrink-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
+        style={{ width: collapsed ? '64px' : '240px', background: 'var(--color-surface)', borderRight: '1px solid var(--color-border)' }}>
 
       {/* Hospital branding */}
       <div className="p-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
@@ -103,5 +109,6 @@ export default function Sidebar() {
         )}
       </div>
     </aside>
+    </>
   );
 }

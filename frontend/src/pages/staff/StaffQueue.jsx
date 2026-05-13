@@ -365,12 +365,12 @@ export default function StaffQueue() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-5 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
         {[['Waiting',waiting,'#f59e0b'],['Current',queue.currentNumber,'var(--color-primary)'],
           ['Done',completed,'#10b981'],['Absent',absent,'#6b7280'],
           ['Revenue',fMoney(revenue,sym),'#6366f1']].map(([l,v,c])=>(
           <div key={l} className="stat-card py-3">
-            <p className="stat-value text-xl" style={{ color:c }}>{v}</p>
+            <p className="stat-value text-xl md:text-2xl" style={{ color:c }}>{v}</p>
             <p className="stat-label">{l}</p>
           </div>
         ))}
@@ -397,53 +397,55 @@ export default function StaffQueue() {
           {filter === 'all' && <Link to="/staff/booking" className="btn-primary mt-4 inline-block text-sm">+ Book a Patient</Link>}
         </div>
       ) : (
-        <div className="card overflow-hidden p-0">
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ background:'var(--color-surface2)', borderBottom:'1px solid var(--color-border)' }}>
-                {['#','Patient','Session','Status','Payment','Actions'].map(h=>(
-                  <th key={h} className="table-header">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredApts.map(apt => {
-                const isCurrent = apt.status === 'in-progress';
-                return (
-                  <tr key={apt._id}
-                    style={{ borderBottom:'1px solid var(--color-border)', background: isCurrent ? 'rgba(var(--color-primary-rgb),0.06)' : 'transparent' }}>
-                    <td className="table-cell">
-                      <div className="flex items-center gap-2">
-                        {apt.isEmergency && <span title="Emergency" className="text-red-500 text-xs">🚨</span>}
-                        <span className="font-bold text-white">#{apt.queueNumber}</span>
-                        {isCurrent && <span className="text-xs px-1.5 py-0.5 rounded-full animate-pulse"
-                          style={{ background:'rgba(var(--color-primary-rgb),0.2)',color:'var(--color-primary)' }}>LIVE</span>}
-                      </div>
-                    </td>
-                    <td className="table-cell">
-                      <p className="text-white font-medium">{apt.patient?.name}</p>
-                      <p className="text-xs" style={{ color:'var(--color-text-muted)' }}>{apt.patient?.phone}</p>
-                    </td>
-                    <td className="table-cell">
-                      <p className="text-xs font-bold" style={{ color: 'var(--color-primary)' }}>{apt.sessionLabel || 'General'}</p>
-                    </td>
-                    <td className="table-cell">
-                      <span className={statusBadge(apt.status)}>{statusLabel(apt.status)}</span>
-                    </td>
-                    <td className="table-cell">
-                      <span className="text-xs px-2 py-0.5 rounded-full capitalize"
-                        style={{ background: apt.paymentStatus==='paid'?'rgba(16,185,129,0.1)':'rgba(255,255,255,0.05)', color: apt.paymentStatus==='paid'?'#10b981':'var(--color-text-muted)' }}>
-                        {apt.paymentStatus}
-                      </span>
-                    </td>
-                    <td className="table-cell">
-                      <StatusActions apt={apt} onUpdate={updateStatus} onRefundRequest={setRefundApt} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="card p-0 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[700px]">
+              <thead>
+                <tr style={{ background:'var(--color-surface2)', borderBottom:'1px solid var(--color-border)' }}>
+                  {['#','Patient','Session','Status','Payment','Actions'].map(h=>(
+                    <th key={h} className="table-header">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredApts.map(apt => {
+                  const isCurrent = apt.status === 'in-progress';
+                  return (
+                    <tr key={apt._id}
+                      style={{ borderBottom:'1px solid var(--color-border)', background: isCurrent ? 'rgba(var(--color-primary-rgb),0.06)' : 'transparent' }}>
+                      <td className="table-cell">
+                        <div className="flex items-center gap-2">
+                          {apt.isEmergency && <span title="Emergency" className="text-red-500 text-xs">🚨</span>}
+                          <span className="font-bold text-white">#{apt.queueNumber}</span>
+                          {isCurrent && <span className="text-xs px-1.5 py-0.5 rounded-full animate-pulse"
+                            style={{ background:'rgba(var(--color-primary-rgb),0.2)',color:'var(--color-primary)' }}>LIVE</span>}
+                        </div>
+                      </td>
+                      <td className="table-cell">
+                        <p className="text-white font-medium">{apt.patient?.name}</p>
+                        <p className="text-xs" style={{ color:'var(--color-text-muted)' }}>{apt.patient?.phone}</p>
+                      </td>
+                      <td className="table-cell">
+                        <p className="text-xs font-bold" style={{ color: 'var(--color-primary)' }}>{apt.sessionLabel || 'General'}</p>
+                      </td>
+                      <td className="table-cell">
+                        <span className={statusBadge(apt.status)}>{statusLabel(apt.status)}</span>
+                      </td>
+                      <td className="table-cell">
+                        <span className="text-xs px-2 py-0.5 rounded-full capitalize"
+                          style={{ background: apt.paymentStatus==='paid'?'rgba(16,185,129,0.1)':'rgba(255,255,255,0.05)', color: apt.paymentStatus==='paid'?'#10b981':'var(--color-text-muted)' }}>
+                          {apt.paymentStatus}
+                        </span>
+                      </td>
+                      <td className="table-cell">
+                        <StatusActions apt={apt} onUpdate={updateStatus} onRefundRequest={setRefundApt} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

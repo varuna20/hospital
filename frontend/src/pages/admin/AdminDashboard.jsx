@@ -49,7 +49,7 @@ export default function AdminDashboard() {
 
       {/* Revenue today */}
       {revenue && (
-        <div className="grid grid-cols-3 gap-4 mb-5">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
           {[{ l: "Hospital Revenue (Today)", v: revenue.paid?.hospitalRevenue, c: 'var(--color-primary)' },
             { l: "Doctor Revenue (Today)", v: revenue.paid?.doctorRevenue, c: '#6366f1' },
             { l: 'Pending Collection', v: revenue.pending?.pendingAmount, c: 'var(--color-warning)' }

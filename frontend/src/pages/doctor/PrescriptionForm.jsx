@@ -269,7 +269,7 @@ export default function PrescriptionForm() {
               <div className="md:col-span-2"><label className="label">Chief Complaint</label><input className="input" placeholder="Presenting symptoms…" value={form.chiefComplaint} onChange={e=>setF('chiefComplaint',e.target.value)} /></div>
             </div>
             <p className="label mb-3">Vitals (optional)</p>
-            <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
               {[['bloodPressure','BP','120/80'],['pulse','Pulse','72 bpm'],['temperature','Temp','37°C'],['weight','Weight','65 kg'],['height','Height','170 cm'],['spo2','SpO₂','98%']].map(([k,l,ph])=>(
                 <div key={k}><label className="label">{l}</label><input className="input" placeholder={ph} value={vitals[k]||''} onChange={e=>setV(k,e.target.value)} /></div>
               ))}

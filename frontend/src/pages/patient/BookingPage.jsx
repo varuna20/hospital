@@ -34,17 +34,17 @@ function StepDot({ n, current, done }) {
 function StepBar({ step }) {
   const labels = ['Hospital', 'Doctor', 'Session', 'Confirm'];
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 32 }}>
+    <div className="flex items-center justify-between mb-8 gap-0">
       {labels.map((label, i) => (
         <React.Fragment key={i}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+          <div className="flex flex-col items-center gap-2 relative">
             <StepDot n={i + 1} current={step === i} done={step > i} />
-            <span style={{ fontSize: 11, color: step >= i ? 'var(--color-primary)' : 'rgba(255,255,255,0.25)', fontFamily: 'DM Sans,sans-serif', whiteSpace: 'nowrap', fontWeight: step === i ? 600 : 400 }}>
+            <span className={`hidden sm:block text-[10px] md:text-[11px] absolute -bottom-5 whitespace-nowrap ${step >= i ? 'text-[var(--color-primary)] font-semibold' : 'text-white/20'}`}>
               {label}
             </span>
           </div>
           {i < labels.length - 1 && (
-            <div style={{ flex: 1, height: 2, margin: '0 8px 20px', background: step > i ? 'var(--color-primary)' : 'rgba(255,255,255,0.08)', transition: 'background 0.3s' }} />
+            <div className={`flex-1 h-0.5 mx-2 ${step > i ? 'bg-[var(--color-primary)]' : 'bg-white/10'}`} />
           )}
         </React.Fragment>
       ))}
@@ -200,28 +200,28 @@ export default function BookingPage() {
     <div style={{ minHeight: '100vh', background: 'var(--color-bg)', display: 'flex', flexDirection: 'column', fontFamily: 'DM Sans,sans-serif' }}>
 
       {/* Header */}
-      <header style={{ borderBottom: '1px solid rgba(255,255,255,0.07)', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <header className="border-b border-white/5 p-3 md:p-4 flex items-center justify-between shrink-0 bg-[var(--color-bg)] sticky top-0 z-10">
+        <div className="flex items-center gap-2 md:gap-3 min-w-0">
           {selHospital?.logo ? (
-            <img src={selHospital.logo} alt="" style={{ height: 38, objectFit: 'contain' }} />
+            <img src={selHospital.logo} alt="" className="h-8 md:h-10 object-contain shrink-0" />
           ) : (
-            <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 900, color: '#02040a', fontFamily: 'Sora,sans-serif' }}>
+            <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg bg-[var(--color-primary)] flex items-center justify-center text-lg font-black text-black shrink-0">
               {selHospital ? selHospital.name.charAt(0) : '🏥'}
             </div>
           )}
-          <div>
-            <p style={{ color: 'white', fontWeight: 700, fontSize: 15, fontFamily: 'Sora,sans-serif', lineHeight: 1.2 }}>
+          <div className="truncate">
+            <p className="text-white font-bold text-sm md:text-base leading-tight truncate">
               {selHospital?.name || 'Hospital eChanneling'}
             </p>
-            {selHospital?.city && <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>{selHospital.city}</p>}
+            {selHospital?.city && <p className="text-white/40 text-[10px] md:text-xs">{selHospital.city}</p>}
           </div>
         </div>
-        <img src="/chevara-logo.png" alt="Chevara Labs" style={{ height: 26, objectFit: 'contain', opacity: 0.5 }} />
+        <img src="/chevara-logo.png" alt="Chevara Labs" className="h-5 md:h-6 object-contain opacity-40 shrink-0 ml-2" />
       </header>
 
       {/* Main content */}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '32px 20px' }}>
-        <div style={{ width: '100%', maxWidth: 600 }}>
+      <div className="flex-1 flex flex-col items-center px-4 py-6 md:py-10">
+        <div className="w-full max-w-[600px]">
 
           {/* Step bar */}
           <StepBar step={step} />
