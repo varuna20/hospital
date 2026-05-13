@@ -33,7 +33,9 @@ async function processMessage(from, to, body) {
     return `❌ Hospital with code '${slug}' not found.`;
   }
 
-  let hospital = await Hospital.findOne({ 'whatsapp.fromNumber': to });
+  const cleanTo = to.replace('whatsapp:', '').trim();
+  let hospital = await Hospital.findOne({ 'whatsapp.fromNumber': cleanTo });
+  
   if (!hospital) hospital = await Hospital.findOne({ isActive: true });
   if (!hospital) return "Sorry, I couldn't identify the hospital. Please contact support.";
 

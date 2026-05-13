@@ -10,7 +10,7 @@ const { processMessage } = require('../utils/chatbot');
 router.post('/webhook', async (req, res) => {
   const { Body, From, To } = req.body;
 
-  console.log(`[WhatsApp-Bot] Message from ${From}: ${Body}`);
+  console.log(`[WhatsApp-Bot] 📩 Received from ${From} to ${To}: "${Body}"`);
 
   try {
     // Process the message and get response text
