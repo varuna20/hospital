@@ -119,7 +119,7 @@ export default function AdminStaff() {
       {resetStaff && <ResetPasswordModal staff={resetStaff} onClose={() => setResetStaff(null)} />}
       {showAdd && <AddStaffModal hospitalId={hid} onClose={() => setShowAdd(false)} onSaved={fetch} />}
 
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between mb-6 gap-3">
         <div>
           <h1 className="page-title">Staff</h1>
           <p className="text-sm" style={{ color:'var(--color-text-muted)' }}>{staff.length} members</p>
@@ -135,56 +135,58 @@ export default function AdminStaff() {
           <p>No staff yet. Add your first staff member.</p>
         </div>
       ) : (
-        <div className="card overflow-hidden p-0">
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ borderBottom:'1px solid var(--color-border)', background:'var(--color-surface2)' }}>
-                {['Name','Email','Role','Added','Status','Actions'].map(h=>(
-                  <th key={h} className="table-header">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {staff.map(m => (
-                <tr key={m._id} style={{ borderBottom:'1px solid var(--color-border)' }}>
-                  <td className="table-cell">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs text-white flex-shrink-0"
-                        style={{ background:'var(--color-primary)' }}>
-                        {m.name?.charAt(0) || '?'}
-                      </div>
-                      <span className="text-white font-medium">{m.name}</span>
-                    </div>
-                  </td>
-                  <td className="table-cell" style={{ color:'var(--color-text-muted)' }}>{m.email}</td>
-                  <td className="table-cell">
-                    <span className="badge badge-booked capitalize">{m.role}</span>
-                  </td>
-                  <td className="table-cell" style={{ color:'var(--color-text-muted)' }}>{fDate(m.createdAt)}</td>
-                  <td className="table-cell">
-                    <span className={m.isActive ? 'badge badge-completed' : 'badge badge-absent'}>
-                      {m.isActive ? 'Active' : 'Disabled'}
-                    </span>
-                  </td>
-                  <td className="table-cell">
-                    <div className="flex gap-2">
-                      <button onClick={() => setResetStaff(m)}
-                        className="text-xs px-3 py-1.5 rounded-lg transition-all"
-                        style={{ background:'rgba(245,158,11,0.1)', color:'#f59e0b' }}
-                        title="Reset password">
-                        🔑 Reset Password
-                      </button>
-                      <button onClick={() => toggle(m._id)}
-                        className="text-xs px-3 py-1.5 rounded-lg transition-all"
-                        style={{ background: m.isActive?'rgba(239,68,68,0.1)':'rgba(16,185,129,0.1)', color: m.isActive?'#ef4444':'#10b981' }}>
-                        {m.isActive ? 'Disable' : 'Enable'}
-                      </button>
-                    </div>
-                  </td>
+        <div className="card p-0 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[800px]">
+              <thead>
+                <tr style={{ borderBottom:'1px solid var(--color-border)', background:'var(--color-surface2)' }}>
+                  {['Name','Email','Role','Added','Status','Actions'].map(h=>(
+                    <th key={h} className="table-header">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {staff.map(m => (
+                  <tr key={m._id} style={{ borderBottom:'1px solid var(--color-border)' }}>
+                    <td className="table-cell">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs text-white flex-shrink-0"
+                          style={{ background:'var(--color-primary)' }}>
+                          {m.name?.charAt(0) || '?'}
+                        </div>
+                        <span className="text-white font-medium">{m.name}</span>
+                      </div>
+                    </td>
+                    <td className="table-cell" style={{ color:'var(--color-text-muted)' }}>{m.email}</td>
+                    <td className="table-cell">
+                      <span className="badge badge-booked capitalize">{m.role}</span>
+                    </td>
+                    <td className="table-cell" style={{ color:'var(--color-text-muted)' }}>{fDate(m.createdAt)}</td>
+                    <td className="table-cell">
+                      <span className={m.isActive ? 'badge badge-completed' : 'badge badge-absent'}>
+                        {m.isActive ? 'Active' : 'Disabled'}
+                      </span>
+                    </td>
+                    <td className="table-cell">
+                      <div className="flex gap-2">
+                        <button onClick={() => setResetStaff(m)}
+                          className="text-xs px-3 py-1.5 rounded-lg transition-all"
+                          style={{ background:'rgba(245,158,11,0.1)', color:'#f59e0b' }}
+                          title="Reset password">
+                          🔑 Reset Password
+                        </button>
+                        <button onClick={() => toggle(m._id)}
+                          className="text-xs px-3 py-1.5 rounded-lg transition-all"
+                          style={{ background: m.isActive?'rgba(239,68,68,0.1)':'rgba(16,185,129,0.1)', color: m.isActive?'#ef4444':'#10b981' }}>
+                          {m.isActive ? 'Disable' : 'Enable'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
