@@ -253,4 +253,29 @@ router.get('/revenue', async (req, res) => {
   }
 });
 
+// ── Message Logs (SMS/WhatsApp) ───────────────────────────────────
+router.get('/message-logs', async (req, res) => {
+  try {
+    const { type, status, hospitalId, limit = 100, page = 1 } = req.query;
+    const MessageLog = require('../models/MessageLog');
+    
+    const query = {};
+    if (type) query.type = type;
+    if (status) query.status = status;
+    if (hospitalId) query.hospitalId = hospitalId;
+
+    const logs = await MessageLog.find(query)
+      .sort({ createdAt: -1 })
+      .skip((Number(page) - 1) * Number(limit))
+      .limit(Number(limit))
+      .populate('hospitalId', 'name shortName');
+
+    const total = await MessageLog.countDocuments(query);
+
+    res.json({ success: true, logs, total, page: Number(page), limit: Number(limit) });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;

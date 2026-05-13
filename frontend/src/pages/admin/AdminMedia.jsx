@@ -9,7 +9,7 @@
  */
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import api from '../../utils/api';
+import api, { fUrl } from '../../utils/api';
 import toast from 'react-hot-toast';
 
 // ── Reusable toggle ────────────────────────────────────────────────
@@ -41,9 +41,9 @@ function SlideCard({ item, onToggle, onDelete, onDurationChange, onCaptionChange
       {/* Preview */}
       <div style={{ borderRadius: 10, overflow: 'hidden', marginBottom: 10, height: 140, background: '#000', position: 'relative' }}>
         {item.type === 'video' ? (
-          <video src={item.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted />
+          <video src={fUrl(item.url)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted />
         ) : (
-          <img src={item.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          <img src={fUrl(item.url)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
         )}
         <span className="absolute top-2 left-2 text-xs px-2 py-0.5 rounded-full capitalize"
           style={{ background: 'rgba(0,0,0,0.7)', color: item.type === 'video' ? '#00d4aa' : '#ffab40' }}>
@@ -324,7 +324,7 @@ export default function AdminMedia() {
           </p>
           {data?.logo && (
             <div className="rounded-xl p-4 flex items-center gap-4 mb-4" style={{ background: 'var(--color-surface2)' }}>
-              <img src={data.logo} alt="Current logo" className="h-16 object-contain rounded-lg" />
+              <img src={fUrl(data.logo)} alt="Current logo" className="h-16 object-contain rounded-lg" />
               <div>
                 <p className="text-white text-sm font-medium">Current logo</p>
                 <p className="text-xs mt-0.5 break-all" style={{ color: 'var(--color-text-muted)' }}>{data.logo}</p>
@@ -370,7 +370,7 @@ export default function AdminMedia() {
           </p>
           {vid?.url ? (
             <div className="rounded-xl overflow-hidden mb-4" style={{ background: 'var(--color-surface2)' }}>
-              <video src={vid.url} className="w-full max-h-48 object-cover" controls muted />
+              <video src={fUrl(vid.url)} className="w-full max-h-48 object-cover" controls muted />
               <div className="px-3 py-2 flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full" style={{ background: vid.enabled ? '#10b981' : '#ef4444' }} />
                 <span className="text-xs" style={{ color: vid.enabled ? '#10b981' : '#ef4444' }}>

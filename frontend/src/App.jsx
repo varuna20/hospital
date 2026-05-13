@@ -23,6 +23,7 @@ import SuperRevenue       from './pages/superadmin/SuperRevenue';
 import SuperSubscriptions from './pages/superadmin/SuperSubscriptions';
 import SuperHospitalLinks from './pages/superadmin/SuperHospitalLinks';
 import SuperSystem        from './pages/superadmin/SuperSystem';
+import SuperLogs          from './pages/superadmin/SuperLogs';
 
 // Admin
 import AdminLayout        from './pages/admin/AdminLayout';
@@ -90,6 +91,7 @@ export default function App() {
                 <Route path="revenue"        element={<SuperRevenue />} />
                 <Route path="subscriptions"  element={<SuperSubscriptions />} />
                 <Route path="system"         element={<SuperSystem />} />
+                <Route path="logs"           element={<SuperLogs />} />
               </Route>
 
               {/* Admin */}

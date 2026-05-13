@@ -65,39 +65,87 @@ export default function AdminDashboard() {
 
       {/* Doctor grid */}
       <h2 className="section-title mb-3">Doctor Status Today</h2>
-      <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {loading ? Array(3).fill(0).map((_, i) => <div key={i} className="card animate-pulse h-40" />) :
-          stats.map(({ doctor: d, stats: s }) => (
-            <div key={d._id} className="card">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white"
-                  style={{ background: 'var(--color-primary)' }}>{d.name.charAt(4) || 'D'}</div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-white text-sm truncate">{d.name}</p>
-                  <p className="text-xs" style={{ color: 'var(--color-primary)' }}>{d.specialization} · {d.room}</p>
-                </div>
-                <div className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{ background: d.todayStatus?.isArrived ? '#10b981' : '#f59e0b' }} />
+      
+      {loading ? (
+        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {Array(3).fill(0).map((_, i) => <div key={i} className="card animate-pulse h-40" />)}
+        </div>
+      ) : (() => {
+        const todayDow = new Date().getDay();
+        const comingToday = stats.filter(({ doctor: d }) => d.sessions?.some(s => s.dayOfWeek === todayDow && s.isActive));
+        const notComingToday = stats.filter(({ doctor: d }) => !d.sessions?.some(s => s.dayOfWeek === todayDow && s.isActive));
+
+        const RenderDoctor = ({ doctor: d, stats: s }) => (
+          <div key={d._id} className="card">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white shadow-lg"
+                style={{ background: 'var(--color-primary)' }}>
+                {d.name.replace(/^Dr\.\s+/i, '').charAt(0) || 'D'}
               </div>
-              <div className="grid grid-cols-4 gap-1.5">
-                {[['Total', s.total, 'var(--color-text)'], ['Wait', s.waiting, 'var(--color-warning)'],
-                  ['Done', s.completed, 'var(--color-success)'], ['Abs', s.absent, 'var(--color-danger)']].map(([l, v, c]) => (
-                  <div key={l} className="text-center py-2 rounded-lg" style={{ background: 'var(--color-surface2)' }}>
-                    <p className="font-bold text-sm" style={{ color: c }}>{v}</p>
-                    <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{l}</p>
-                  </div>
-                ))}
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-white text-sm truncate">{d.name}</p>
+                <p className="text-xs" style={{ color: 'var(--color-primary)' }}>{d.specialization} · {d.room}</p>
               </div>
-              <div className="mt-3 flex gap-2">
-                <Link to={`/admin/doctors`} className="btn-ghost text-xs flex-1 text-center">Manage →</Link>
-                <Link to={`/staff/queue?doctor=${d._id}`} className="text-xs px-3 py-1.5 rounded-xl"
-                  style={{ background: 'rgba(var(--color-primary-rgb),0.15)', color: 'var(--color-primary)' }}>
-                  Queue
-                </Link>
-              </div>
+              <div className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{ background: d.todayStatus?.isArrived ? '#10b981' : '#f59e0b' }} />
             </div>
-          ))}
-      </div>
+            <div className="grid grid-cols-4 gap-1.5">
+              {[['Total', s.total, 'var(--color-text)'], ['Wait', s.waiting, 'var(--color-warning)'],
+                ['Done', s.completed, 'var(--color-success)'], ['Abs', s.absent, 'var(--color-danger)']].map(([l, v, c]) => (
+                <div key={l} className="text-center py-2 rounded-lg" style={{ background: 'var(--color-surface2)' }}>
+                  <p className="font-bold text-sm" style={{ color: c }}>{v}</p>
+                  <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{l}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 flex gap-2">
+              <Link to={`/admin/doctors`} className="btn-ghost text-xs flex-1 text-center">Manage →</Link>
+              <Link to={`/staff/queue?doctor=${d._id}`} className="text-xs px-3 py-1.5 rounded-xl"
+                style={{ background: 'rgba(var(--color-primary-rgb),0.15)', color: 'var(--color-primary)' }}>
+                Queue
+              </Link>
+            </div>
+          </div>
+        );
+
+        return (
+          <div className="space-y-8">
+            {/* Segment 1: Coming Today */}
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color:'var(--color-primary)' }}>
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background:'var(--color-primary)' }}></span>
+                Doctors Coming Today ({comingToday.length})
+              </p>
+              {comingToday.length === 0 ? (
+                <div className="p-8 rounded-2xl border-2 border-dashed text-center" style={{ borderColor:'var(--color-border)' }}>
+                  <p className="text-sm italic" style={{ color:'var(--color-text-muted)' }}>No doctors scheduled for today.</p>
+                </div>
+              ) : (
+                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {comingToday.map(RenderDoctor)}
+                </div>
+              )}
+            </div>
+
+            {/* Segment 2: Not Coming Today */}
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color:'var(--color-text-muted)' }}>
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background:'var(--color-text-muted)' }}></span>
+                Not Scheduled Today ({notComingToday.length})
+              </p>
+              {notComingToday.length === 0 ? (
+                <div className="p-8 rounded-2xl border-2 border-dashed text-center" style={{ borderColor:'var(--color-border)' }}>
+                  <p className="text-sm italic" style={{ color:'var(--color-text-muted)' }}>All doctors are scheduled for today.</p>
+                </div>
+              ) : (
+                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 opacity-75 grayscale-[0.5]">
+                  {notComingToday.map(RenderDoctor)}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

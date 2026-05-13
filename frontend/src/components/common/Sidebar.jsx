@@ -9,6 +9,7 @@ const NAV = {
     { to: '/super/revenue',       label: 'Revenue',        icon: '💰' },
     { to: '/super/subscriptions', label: 'Subscriptions',  icon: '📦' },
     { to: '/super/system',        label: 'System',         icon: '⚙' },
+    { to: '/super/logs',          label: 'Message Logs',   icon: '📝' },
     { to: '/super/links',         label: 'Hospital Links', icon: '🔗' },
   ],
   admin: [

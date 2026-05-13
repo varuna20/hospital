@@ -135,59 +135,103 @@ export default function AdminStaff() {
           <p>No staff yet. Add your first staff member.</p>
         </div>
       ) : (
-        <div className="card p-0 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[800px]">
-              <thead>
-                <tr style={{ borderBottom:'1px solid var(--color-border)', background:'var(--color-surface2)' }}>
-                  {['Name','Email','Role','Added','Status','Actions'].map(h=>(
-                    <th key={h} className="table-header">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {staff.map(m => (
-                  <tr key={m._id} style={{ borderBottom:'1px solid var(--color-border)' }}>
-                    <td className="table-cell">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs text-white flex-shrink-0"
-                          style={{ background:'var(--color-primary)' }}>
-                          {m.name?.charAt(0) || '?'}
-                        </div>
-                        <span className="text-white font-medium">{m.name}</span>
-                      </div>
-                    </td>
-                    <td className="table-cell" style={{ color:'var(--color-text-muted)' }}>{m.email}</td>
-                    <td className="table-cell">
-                      <span className="badge badge-booked capitalize">{m.role}</span>
-                    </td>
-                    <td className="table-cell" style={{ color:'var(--color-text-muted)' }}>{fDate(m.createdAt)}</td>
-                    <td className="table-cell">
-                      <span className={m.isActive ? 'badge badge-completed' : 'badge badge-absent'}>
-                        {m.isActive ? 'Active' : 'Disabled'}
-                      </span>
-                    </td>
-                    <td className="table-cell">
-                      <div className="flex gap-2">
-                        <button onClick={() => setResetStaff(m)}
-                          className="text-xs px-3 py-1.5 rounded-lg transition-all"
-                          style={{ background:'rgba(245,158,11,0.1)', color:'#f59e0b' }}
-                          title="Reset password">
-                          🔑 Reset Password
-                        </button>
-                        <button onClick={() => toggle(m._id)}
-                          className="text-xs px-3 py-1.5 rounded-lg transition-all"
-                          style={{ background: m.isActive?'rgba(239,68,68,0.1)':'rgba(16,185,129,0.1)', color: m.isActive?'#ef4444':'#10b981' }}>
-                          {m.isActive ? 'Disable' : 'Enable'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <>
+          {/* Mobile View: Cards */}
+          <div className="grid grid-cols-1 gap-4 md:hidden">
+            {staff.map(m => (
+              <div key={m._id} className="card p-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm text-white flex-shrink-0"
+                    style={{ background:'var(--color-primary)' }}>
+                    {m.name?.charAt(0) || '?'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-bold truncate">{m.name}</p>
+                    <p className="text-xs truncate" style={{ color:'var(--color-text-muted)' }}>{m.email}</p>
+                  </div>
+                  <span className="badge badge-booked capitalize text-[10px]">{m.role}</span>
+                </div>
+                
+                <div className="flex items-center justify-between pt-2 border-t" style={{ borderColor:'rgba(255,255,255,0.05)' }}>
+                  <div className="text-[10px]" style={{ color:'var(--color-text-muted)' }}>
+                    Added {fDate(m.createdAt)}
+                  </div>
+                  <span className={m.isActive ? 'badge badge-completed text-[10px]' : 'badge badge-absent text-[10px]'}>
+                    {m.isActive ? 'Active' : 'Disabled'}
+                  </span>
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => setResetStaff(m)}
+                    className="text-xs px-3 py-2 rounded-xl transition-all flex-1 flex items-center justify-center gap-1.5"
+                    style={{ background:'rgba(245,158,11,0.1)', color:'#f59e0b' }}>
+                    🔑 <span className="font-semibold">Reset PW</span>
+                  </button>
+                  <button onClick={() => toggle(m._id)}
+                    className="text-xs px-3 py-2 rounded-xl transition-all flex-1 font-semibold"
+                    style={{ background: m.isActive?'rgba(239,68,68,0.1)':'rgba(16,185,129,0.1)', color: m.isActive?'#ef4444':'#10b981' }}>
+                    {m.isActive ? 'Disable' : 'Enable'}
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
+
+          {/* Desktop View: Table */}
+          <div className="hidden md:block card p-0 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ borderBottom:'1px solid var(--color-border)', background:'var(--color-surface2)' }}>
+                    {['Name','Email','Role','Added','Status','Actions'].map(h=>(
+                      <th key={h} className="table-header">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {staff.map(m => (
+                    <tr key={m._id} style={{ borderBottom:'1px solid var(--color-border)' }}>
+                      <td className="table-cell">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs text-white flex-shrink-0"
+                            style={{ background:'var(--color-primary)' }}>
+                            {m.name?.charAt(0) || '?'}
+                          </div>
+                          <span className="text-white font-medium">{m.name}</span>
+                        </div>
+                      </td>
+                      <td className="table-cell" style={{ color:'var(--color-text-muted)' }}>{m.email}</td>
+                      <td className="table-cell">
+                        <span className="badge badge-booked capitalize">{m.role}</span>
+                      </td>
+                      <td className="table-cell" style={{ color:'var(--color-text-muted)' }}>{fDate(m.createdAt)}</td>
+                      <td className="table-cell">
+                        <span className={m.isActive ? 'badge badge-completed' : 'badge badge-absent'}>
+                          {m.isActive ? 'Active' : 'Disabled'}
+                        </span>
+                      </td>
+                      <td className="table-cell">
+                        <div className="flex gap-2">
+                          <button onClick={() => setResetStaff(m)}
+                            className="text-xs px-3 py-1.5 rounded-lg transition-all"
+                            style={{ background:'rgba(245,158,11,0.1)', color:'#f59e0b' }}
+                            title="Reset password">
+                            🔑 Reset Password
+                          </button>
+                          <button onClick={() => toggle(m._id)}
+                            className="text-xs px-3 py-1.5 rounded-lg transition-all"
+                            style={{ background: m.isActive?'rgba(239,68,68,0.1)':'rgba(16,185,129,0.1)', color: m.isActive?'#ef4444':'#10b981' }}>
+                            {m.isActive ? 'Disable' : 'Enable'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

@@ -52,11 +52,35 @@ function getFromNumber(hospital) {
  * Core send function
  */
 async function sendWhatsApp(hospital, to, message) {
-  if (!hospital?.whatsapp?.enabled) return { sent: false, reason: 'WhatsApp disabled for this hospital' };
+  const MessageLog = require('../models/MessageLog');
+  const hospitalId = hospital?._id;
+
+  if (!hospital?.whatsapp?.enabled) {
+    await MessageLog.create({
+      hospitalId,
+      type: 'whatsapp',
+      recipient: to,
+      message,
+      status: 'skipped',
+      error: 'WhatsApp disabled for this hospital'
+    }).catch(() => {});
+    return { sent: false, reason: 'WhatsApp disabled for this hospital' };
+  }
+  
   if (!to) return { sent: false, reason: 'No phone number' };
 
   const client = getClient(hospital);
-  if (!client) return { sent: false, reason: 'Twilio not configured' };
+  if (!client) {
+    await MessageLog.create({
+      hospitalId,
+      type: 'whatsapp',
+      recipient: to,
+      message,
+      status: 'failed',
+      error: 'Twilio not configured'
+    }).catch(() => {});
+    return { sent: false, reason: 'Twilio not configured' };
+  }
 
   try {
     const result = await client.messages.create({
@@ -64,10 +88,32 @@ async function sendWhatsApp(hospital, to, message) {
       from: getFromNumber(hospital),
       to:   formatWhatsApp(to)
     });
+    
+    await MessageLog.create({
+      hospitalId,
+      type: 'whatsapp',
+      recipient: to,
+      message,
+      status: 'sent',
+      provider: 'twilio',
+      providerResponse: { sid: result.sid, status: result.status }
+    }).catch(() => {});
+
     console.log(`✅ WhatsApp sent to ${to}: ${result.sid}`);
     return { sent: true, sid: result.sid };
   } catch (err) {
     console.error(`❌ WhatsApp error to ${to}:`, err.message);
+    
+    await MessageLog.create({
+      hospitalId,
+      type: 'whatsapp',
+      recipient: to,
+      message,
+      status: 'failed',
+      provider: 'twilio',
+      error: err.message
+    }).catch(() => {});
+
     return { sent: false, reason: err.message };
   }
 }

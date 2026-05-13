@@ -11,4 +11,13 @@ api.interceptors.response.use(r => r, err => {
   if (err.response?.status === 401) { localStorage.clear(); window.location.href = '/login'; }
   return Promise.reject(err);
 });
+
+export const fUrl = (url) => {
+  if (!url) return '';
+  if (url.startsWith('http')) return url;
+  // If it starts with /uploads, prepend the base domain (without /api)
+  return `${base}${url}`;
+};
+
+export { base };
 export default api;

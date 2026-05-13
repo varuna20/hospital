@@ -131,20 +131,60 @@ async function sendHospitalSms({ hospitalId, to, message, type = 'plain', templa
 
   if (!apiKey) {
     console.warn('⚠️  SMS not sent: no text.lk API key configured');
+    const MessageLog = require('../models/MessageLog');
+    await MessageLog.create({
+      hospitalId,
+      type: 'sms',
+      recipient: to,
+      message: finalMessage,
+      status: 'skipped',
+      error: 'SMS not configured'
+    }).catch(() => {});
     return { skipped: true, reason: 'SMS not configured' };
   }
 
+  const MessageLog = require('../models/MessageLog');
   try {
     console.log(`📡 Sending SMS to ${to} (Formatted: ${formatPhone(to)})`);
     console.log(`   Message: ${finalMessage.slice(0, 50)}...`);
     console.log(`   Sender: ${senderId}, Key: ${apiKey.slice(0, 4)}...${apiKey.slice(-4)}`);
     
-    const result = await sendSms({ to, message: finalMessage, apiKey, senderId, type });
+    const result = await sendSms({ 
+      to, 
+      message: finalMessage, 
+      apiKey: apiKey.replace(/^Bearer\s+/i, ''), // Clean redundant Bearer prefix
+      senderId, 
+      type 
+    });
+    
+    await MessageLog.create({
+      hospitalId,
+      type: 'sms',
+      recipient: to,
+      message: finalMessage,
+      status: 'sent',
+      provider: 'textlk',
+      providerResponse: result,
+      metadata: { templateType, ...templateData }
+    }).catch(e => console.error('Log Error:', e.message));
+
     console.log(`✅ SMS status from text.lk for ${to}:`, result);
     return result;
   } catch (err) {
     const errorData = err.response?.data || err.message;
     console.error(`❌ SMS failed to ${to}:`, errorData);
+
+    await MessageLog.create({
+      hospitalId,
+      type: 'sms',
+      recipient: to,
+      message: finalMessage,
+      status: 'failed',
+      provider: 'textlk',
+      error: typeof errorData === 'string' ? errorData : JSON.stringify(errorData),
+      metadata: { templateType, ...templateData }
+    }).catch(e => console.error('Log Error:', e.message));
+
     throw err;
   }
 }
