@@ -20,7 +20,10 @@ router.post('/webhook', async (req, res) => {
     const twiml = new twilio.twiml.MessagingResponse();
     twiml.message(responseText);
 
-    res.type('text/xml').send(twiml.toString());
+    const xml = twiml.toString();
+    console.log(`[WhatsApp-Bot] 📤 Replying with: ${xml.slice(0, 50)}...`);
+
+    res.type('text/xml').send(xml);
   } catch (err) {
     console.error('❌ Chatbot Error:', err.message);
     // Silent fail for webhook, or return generic message
