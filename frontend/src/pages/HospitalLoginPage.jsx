@@ -93,7 +93,8 @@ export default function HospitalLoginPage() {
         toast.success(`Welcome, ${data.patient.name}`);
       }
     } catch (err) {
-      toast.error('Google login failed');
+      console.error('Google SSO Error:', err.response?.data || err);
+      toast.error(err.response?.data?.message || 'Google login failed');
     } finally {
       setSubmitting(false);
     }
@@ -233,7 +234,7 @@ export default function HospitalLoginPage() {
               <div>
                 {/* Google Login */}
                 <div style={{ marginBottom:20, display:'flex', justifyContent:'center' }}>
-                  <GoogleLogin onSuccess={handleGoogleSuccess} onError={() => toast.error('Google login failed')} useOneTap />
+                  <GoogleLogin onSuccess={handleGoogleSuccess} onError={() => toast.error('Google popup failed or was closed')} useOneTap />
                 </div>
                 
                 <div style={{ display:'flex', alignItems:'center', margin:'20px 0' }}>
