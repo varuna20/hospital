@@ -12,6 +12,7 @@ const router   = express.Router();
 const User     = require('../models/User');
 const Patient  = require('../models/Patient');
 const Hospital = require('../models/Hospital');
+const bcrypt   = require('bcryptjs');
 const { generateToken, protect } = require('../middleware/auth');
 
 // ── Staff / Doctor / Admin / SuperAdmin Login ──────────────────
