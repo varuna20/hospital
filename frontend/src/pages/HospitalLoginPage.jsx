@@ -30,7 +30,7 @@ export default function HospitalLoginPage() {
   // Redirect if already logged in
   useEffect(() => {
     if (!user) return;
-    const map = { superadmin: '/super', admin: '/admin', staff: '/staff', doctor: '/doctor' };
+    const map = { superadmin: '/super', admin: '/admin', staff: '/staff', doctor: '/doctor', patient: '/patient-dashboard' };
     navigate(map[user.role] || '/', { replace: true });
   }, [user, navigate]);
 
