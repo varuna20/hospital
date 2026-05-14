@@ -142,8 +142,7 @@ router.post('/patient/request-otp', async (req, res) => {
     await sendHospitalSms({
       hospitalId,
       to: phone,
-      templateType: 'custom',
-      customText: `Your ${hospital?.name || 'Hospital'} verification code is: ${otpCode}. It expires in 10 minutes.`
+      message: `Your ${hospital?.name || 'Hospital'} verification code is: ${otpCode}. Valid for 10 minutes.`
     });
 
     res.json({ success: true, message: 'OTP sent to mobile' });
@@ -196,22 +195,32 @@ router.post('/patient-login', async (req, res) => {
 // ── Patient Google SSO ───────────────────────────────────────────
 router.post('/patient/google', async (req, res) => {
   try {
-    const { token, hospitalId, email, name, googleId, picture } = req.body;
-    // In production, verify 'token' using google-auth-library here.
-    // Since Client ID is pending, we mock the verification and trust the frontend payload for now.
+    const { token, hospitalId } = req.body;
+    if (!token || !hospitalId) return res.status(400).json({ success: false, message: 'Invalid payload' });
 
-    if (!email || !hospitalId) return res.status(400).json({ success: false, message: 'Invalid payload' });
+    // Verify the Google ID token properly
+    const { OAuth2Client } = require('google-auth-library');
+    const GOOGLE_CLIENT_ID = '203959833526-mhte9s2b5402qbj92ehre1rd43vsgse4.apps.googleusercontent.com';
+    const client = new OAuth2Client(GOOGLE_CLIENT_ID);
 
-    let patient = await Patient.findOne({ email, hospitalId });
+    const ticket = await client.verifyIdToken({
+      idToken: token,
+      audience: GOOGLE_CLIENT_ID
+    });
+    const payload = ticket.getPayload();
+    const { email, name, sub: googleId, picture } = payload;
+
+    if (!email) return res.status(400).json({ success: false, message: 'No email from Google' });
+
+    let patient = await Patient.findOne({ $or: [{ googleId }, { email, hospitalId }] });
     if (!patient) {
-      // First time SSO login -> register them
       patient = await Patient.create({
         hospitalId, name, email, googleId, avatar: picture, isGuest: false, phone: 'Pending'
       });
     } else {
-      // Link Google ID if not present
       if (!patient.googleId) patient.googleId = googleId;
-      if (!patient.avatar) patient.avatar = picture;
+      if (!patient.avatar && picture) patient.avatar = picture;
+      if (!patient.hospitalId || patient.hospitalId.toString() !== hospitalId) patient.hospitalId = hospitalId;
       patient.isGuest = false;
       await patient.save();
     }
@@ -219,8 +228,8 @@ router.post('/patient/google', async (req, res) => {
     const jwtToken = generateToken(patient._id);
     res.json({ success: true, token: jwtToken, patient: { id: patient._id, name: patient.name, email: patient.email, role: 'patient', avatar: patient.avatar } });
   } catch (err) {
-    console.error('Google SSO Error:', err);
-    res.status(500).json({ success: false, message: 'SSO login failed' });
+    console.error('Google SSO Error:', err.message);
+    res.status(500).json({ success: false, message: err.message || 'SSO login failed' });
   }
 });
 

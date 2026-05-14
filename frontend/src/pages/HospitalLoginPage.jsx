@@ -70,25 +70,12 @@ export default function HospitalLoginPage() {
   const handleGoogleSuccess = async (credentialResponse) => {
     try {
       setSubmitting(true);
-      // We send the JWT credential token to backend. Backend mocks verification or extracts it.
-      // Since backend is mocked, we can decode it here to pass basic info, or just send the token.
-      const base64Url = credentialResponse.credential.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-      }).join(''));
-      const payload = JSON.parse(jsonPayload);
-
       const { data } = await api.post('/auth/patient/google', {
         token: credentialResponse.credential,
         hospitalId: hospital?._id,
-        email: payload.email,
-        name: payload.name,
-        googleId: payload.sub,
-        picture: payload.picture
       });
       if (data.success) {
-        login(data.token, data.user || data.patient);
+        login(data.token, { ...data.patient, role: 'patient' });
         navigate('/patient-dashboard', { replace: true });
         toast.success(`Welcome, ${data.patient.name}`);
       }

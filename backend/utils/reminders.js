@@ -33,8 +33,7 @@ async function processFollowUpReminders() {
       await sendHospitalSms({
         hospitalId: hospital?._id,
         to: p.patient.phone,
-        templateType: 'custom',
-        customText: msg
+        message: msg
       });
       
       p.reminderSent.threeDay = true;
@@ -59,8 +58,7 @@ async function processFollowUpReminders() {
       await sendHospitalSms({
         hospitalId: hospital?._id,
         to: p.patient.phone,
-        templateType: 'custom',
-        customText: msg
+        message: msg
       });
       
       p.reminderSent.dayOf = true;

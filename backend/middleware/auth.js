@@ -7,6 +7,7 @@
  */
 const jwt      = require('jsonwebtoken');
 const User     = require('../models/User');
+const Patient  = require('../models/Patient');
 
 // ── Verify JWT token ───────────────────────────────────────────────
 const protect = async (req, res, next) => {
@@ -18,19 +19,28 @@ const protect = async (req, res, next) => {
     const token = auth.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    const user = await User.findById(decoded.id)
+    // Check User collection first (staff/doctor/admin/superadmin)
+    let user = await User.findById(decoded.id)
       .populate('hospitalId', 'name shortName slug theme logo logoUrl isActive payment queueSettings whatsapp')
       .populate('doctorProfile');
 
-    if (!user || !user.isActive)
-      return res.status(401).json({ success: false, message: 'Account not found or disabled' });
+    if (user) {
+      if (!user.isActive)
+        return res.status(401).json({ success: false, message: 'Account not found or disabled' });
+      if (user.role !== 'superadmin' && user.hospitalId && !user.hospitalId.isActive)
+        return res.status(403).json({ success: false, message: 'Hospital account is disabled' });
+      req.user = user;
+      return next();
+    }
 
-    // Hospital must still be active (skip for superadmin)
-    if (user.role !== 'superadmin' && user.hospitalId && !user.hospitalId.isActive)
-      return res.status(403).json({ success: false, message: 'Hospital account is disabled' });
+    // Fall back to Patient collection
+    const patient = await Patient.findById(decoded.id).populate('hospitalId', 'name shortName slug theme logo isActive');
+    if (patient) {
+      req.user = { ...patient.toObject(), role: 'patient', _id: patient._id };
+      return next();
+    }
 
-    req.user = user;
-    next();
+    return res.status(401).json({ success: false, message: 'Account not found or disabled' });
   } catch (err) {
     return res.status(401).json({ success: false, message: 'Invalid token' });
   }
