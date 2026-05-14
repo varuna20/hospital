@@ -238,7 +238,7 @@ export default function HospitalLoginPage() {
                 
                 <div style={{ display:'flex', alignItems:'center', margin:'20px 0' }}>
                   <div style={{ flex:1, height:1, background:'rgba(255,255,255,0.1)' }} />
-                  <span style={{ padding:'0 10px', fontSize:11, color:'#6b7b8f', textTransform:'uppercase', fontWeight:bold }}>OR</span>
+                  <span style={{ padding:'0 10px', fontSize:11, color:'#6b7b8f', textTransform:'uppercase', fontWeight:'bold' }}>OR</span>
                   <div style={{ flex:1, height:1, background:'rgba(255,255,255,0.1)' }} />
                 </div>
 
