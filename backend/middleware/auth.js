@@ -87,7 +87,6 @@ const tenantScope = (req, res, next) => {
 };
 
 // ── Safe hospitalId extractor ─────────────────────────────────────
-// Use this in every route instead of raw req.query.hospitalId
 const getHospitalId = (req) => {
   if (req.user.role === 'superadmin') return req.query.hospitalId || req.body.hospitalId || null;
   const hid = req.user.hospitalId;
@@ -95,4 +94,13 @@ const getHospitalId = (req) => {
   return hid._id ? hid._id.toString() : hid.toString();
 };
 
-module.exports = { protect, authorize, superAdminOnly, tenantScope, getHospitalId };
+// ── Generate JWT token ─────────────────────────────────────────────
+const generateToken = (id) => {
+  return require('jsonwebtoken').sign(
+    { id },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRE || '30d' }
+  );
+};
+
+module.exports = { protect, authorize, superAdminOnly, tenantScope, getHospitalId, generateToken };
