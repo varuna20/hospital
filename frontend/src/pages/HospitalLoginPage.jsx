@@ -14,6 +14,7 @@ import { useTheme } from '../context/ThemeContext';
 import api from '../utils/api';
 import toast from 'react-hot-toast';
 import ChevFooter from '../components/ChevFooter.jsx';
+import { GoogleLogin } from '@react-oauth/google';
 
 export default function HospitalLoginPage() {
   const { slug } = useParams();
@@ -61,6 +62,76 @@ export default function HospitalLoginPage() {
       .finally(() => setLoading(false));
   }, [slug]);
 
+  const [tab, setTab] = useState('patient'); // 'patient' | 'staff'
+  const [phone, setPhone] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  
+  const handleGoogleSuccess = async (credentialResponse) => {
+    try {
+      setSubmitting(true);
+      // We send the JWT credential token to backend. Backend mocks verification or extracts it.
+      // Since backend is mocked, we can decode it here to pass basic info, or just send the token.
+      const base64Url = credentialResponse.credential.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      const payload = JSON.parse(jsonPayload);
+
+      const { data } = await api.post('/auth/patient/google', {
+        token: credentialResponse.credential,
+        hospitalId: hospital?._id,
+        email: payload.email,
+        name: payload.name,
+        googleId: payload.sub,
+        picture: payload.picture
+      });
+      if (data.success) {
+        login(data.token, data.user || data.patient);
+        navigate('/patient-dashboard', { replace: true });
+        toast.success(`Welcome, ${data.patient.name}`);
+      }
+    } catch (err) {
+      toast.error('Google login failed');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSendOtp = async (e) => {
+    e.preventDefault();
+    if (!phone) return toast.error('Enter mobile number');
+    setSubmitting(true);
+    try {
+      await api.post('/auth/patient/request-otp', { phone, hospitalId: hospital?._id });
+      setOtpSent(true);
+      toast.success('Verification code sent via SMS');
+    } catch (err) {
+      toast.error('Failed to send code');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    if (!otpCode) return toast.error('Enter 4-digit code');
+    setSubmitting(true);
+    try {
+      const { data } = await api.post('/auth/patient/verify-otp', { phone, hospitalId: hospital?._id, otpCode });
+      if (data.success) {
+        login(data.token, data.user || data.patient);
+        navigate('/patient-dashboard', { replace: true });
+        toast.success(`Welcome back`);
+      }
+    } catch (err) {
+      toast.error('Invalid verification code');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.email || !form.password) { toast.error('Enter email and password'); return; }
@@ -70,7 +141,7 @@ export default function HospitalLoginPage() {
         email: form.email,
         password: form.password,
         hospitalId: hospital?._id,
-        hospitalSlug: slug,  // tenant isolation check on server
+        hospitalSlug: slug,
       });
       if (!data.success) { toast.error(data.message || 'Login failed'); return; }
       login(data.token, data.user);
@@ -140,46 +211,136 @@ export default function HospitalLoginPage() {
             padding:'32px 36px',
             boxShadow:`0 0 0 1px ${primary}08, 0 24px 64px rgba(0,0,0,0.6), 0 2px 8px ${primary}12`,
           }}>
-            <h2 style={{ fontFamily:'Sora,sans-serif', fontWeight:700, color:'white', fontSize:18, marginBottom:6 }}>Staff Login</h2>
-            <p style={{ color:'#6b7b8f', fontSize:13, marginBottom:24 }}>Sign in to manage appointments and queue</p>
-
-            <form onSubmit={handleSubmit}>
-              <div style={{ marginBottom:16 }}>
-                <label style={{ display:'block', color:'#6b7b8f', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:6 }}>Email Address</label>
-                <input
-                  type="email" autoComplete="email" required
-                  value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))}
-                  placeholder="your@email.com"
-                  style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:`1px solid rgba(255,255,255,0.1)`, borderRadius:10, padding:'12px 14px', color:'white', fontSize:14, outline:'none', fontFamily:'DM Sans,sans-serif', transition:'border 0.2s' }}
-                  onFocus={e => e.target.style.borderColor = primary}
-                  onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
-                />
-              </div>
-              <div style={{ marginBottom:24 }}>
-                <label style={{ display:'block', color:'#6b7b8f', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:6 }}>Password</label>
-                <input
-                  type="password" autoComplete="current-password" required
-                  value={form.password} onChange={e => setForm(f => ({...f, password: e.target.value}))}
-                  placeholder="••••••••"
-                  style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:`1px solid rgba(255,255,255,0.1)`, borderRadius:10, padding:'12px 14px', color:'white', fontSize:14, outline:'none', fontFamily:'DM Sans,sans-serif', transition:'border 0.2s' }}
-                  onFocus={e => e.target.style.borderColor = primary}
-                  onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
-                />
-              </div>
-              <button
-                type="submit" disabled={submitting}
-                style={{
-                  width:'100%', padding:'13px', borderRadius:12, border:'none',
-                  background: submitting ? '#1e2533' : `linear-gradient(135deg, ${primary}, #00a8d4)`,
-                  color: submitting ? '#6b7b8f' : '#02040a',
-                  fontFamily:'Sora,sans-serif', fontWeight:700, fontSize:15,
-                  cursor: submitting ? 'not-allowed' : 'pointer',
-                  transition:'all 0.2s',
-                  boxShadow: submitting ? 'none' : `0 4px 20px ${primary}40`,
-                }}>
-                {submitting ? 'Signing in…' : 'Sign In'}
+            
+            {/* Tabs */}
+            <div style={{ display:'flex', gap:8, marginBottom:24, background:'rgba(255,255,255,0.05)', padding:4, borderRadius:12 }}>
+              <button onClick={() => setTab('patient')} style={{ flex:1, padding:'8px', borderRadius:8, background: tab === 'patient' ? primary : 'transparent', color: tab === 'patient' ? '#000' : '#6b7b8f', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', transition:'0.2s' }}>
+                Patient Portal
               </button>
-            </form>
+              <button onClick={() => setTab('staff')} style={{ flex:1, padding:'8px', borderRadius:8, background: tab === 'staff' ? primary : 'transparent', color: tab === 'staff' ? '#000' : '#6b7b8f', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', transition:'0.2s' }}>
+                Staff Access
+              </button>
+            </div>
+
+            <h2 style={{ fontFamily:'Sora,sans-serif', fontWeight:700, color:'white', fontSize:18, marginBottom:6 }}>
+              {tab === 'patient' ? 'Welcome Back' : 'Staff Login'}
+            </h2>
+            <p style={{ color:'#6b7b8f', fontSize:13, marginBottom:24 }}>
+              {tab === 'patient' ? 'Access your medical history and appointments' : 'Sign in to manage appointments and queue'}
+            </p>
+
+            {tab === 'patient' ? (
+              <div>
+                {/* Google Login */}
+                <div style={{ marginBottom:20, display:'flex', justifyContent:'center' }}>
+                  <GoogleLogin onSuccess={handleGoogleSuccess} onError={() => toast.error('Google login failed')} useOneTap />
+                </div>
+                
+                <div style={{ display:'flex', alignItems:'center', margin:'20px 0' }}>
+                  <div style={{ flex:1, height:1, background:'rgba(255,255,255,0.1)' }} />
+                  <span style={{ padding:'0 10px', fontSize:11, color:'#6b7b8f', textTransform:'uppercase', fontWeight:bold }}>OR</span>
+                  <div style={{ flex:1, height:1, background:'rgba(255,255,255,0.1)' }} />
+                </div>
+
+                {/* OTP Login */}
+                {!otpSent ? (
+                  <form onSubmit={handleSendOtp}>
+                    <div style={{ marginBottom:16 }}>
+                      <label style={{ display:'block', color:'#6b7b8f', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:6 }}>Mobile Number</label>
+                      <input
+                        type="tel" required
+                        value={phone} onChange={e => setPhone(e.target.value)}
+                        placeholder="+94 77..."
+                        style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:`1px solid rgba(255,255,255,0.1)`, borderRadius:10, padding:'12px 14px', color:'white', fontSize:14, outline:'none', fontFamily:'DM Sans,sans-serif', transition:'border 0.2s' }}
+                        onFocus={e => e.target.style.borderColor = primary}
+                        onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+                      />
+                    </div>
+                    <button
+                      type="submit" disabled={submitting}
+                      style={{
+                        width:'100%', padding:'13px', borderRadius:12, border:'none',
+                        background: submitting ? '#1e2533' : `linear-gradient(135deg, ${primary}, #00a8d4)`,
+                        color: submitting ? '#6b7b8f' : '#02040a',
+                        fontFamily:'Sora,sans-serif', fontWeight:700, fontSize:15,
+                        cursor: submitting ? 'not-allowed' : 'pointer',
+                        transition:'all 0.2s',
+                        boxShadow: submitting ? 'none' : `0 4px 20px ${primary}40`,
+                      }}>
+                      {submitting ? 'Sending...' : 'Send Verification Code'}
+                    </button>
+                  </form>
+                ) : (
+                  <form onSubmit={handleVerifyOtp}>
+                    <div style={{ marginBottom:16 }}>
+                      <label style={{ display:'block', color:'#6b7b8f', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:6 }}>Verification Code</label>
+                      <input
+                        type="text" required maxLength={4}
+                        value={otpCode} onChange={e => setOtpCode(e.target.value)}
+                        placeholder="----"
+                        style={{ width:'100%', textAlign:'center', letterSpacing:'8px', fontWeight:900, background:'rgba(255,255,255,0.05)', border:`1px solid rgba(255,255,255,0.1)`, borderRadius:10, padding:'12px 14px', color:'white', fontSize:20, outline:'none', fontFamily:'DM Sans,sans-serif', transition:'border 0.2s' }}
+                        onFocus={e => e.target.style.borderColor = primary}
+                        onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+                      />
+                    </div>
+                    <button
+                      type="submit" disabled={submitting}
+                      style={{
+                        width:'100%', padding:'13px', borderRadius:12, border:'none',
+                        background: submitting ? '#1e2533' : `linear-gradient(135deg, ${primary}, #00a8d4)`,
+                        color: submitting ? '#6b7b8f' : '#02040a',
+                        fontFamily:'Sora,sans-serif', fontWeight:700, fontSize:15,
+                        cursor: submitting ? 'not-allowed' : 'pointer',
+                        transition:'all 0.2s',
+                        boxShadow: submitting ? 'none' : `0 4px 20px ${primary}40`,
+                      }}>
+                      {submitting ? 'Verifying...' : 'Sign In'}
+                    </button>
+                    <button type="button" onClick={() => setOtpSent(false)} style={{ width:'100%', marginTop:12, padding:8, background:'transparent', border:'none', color:'#6b7b8f', fontSize:12, cursor:'pointer' }}>
+                      Change mobile number
+                    </button>
+                  </form>
+                )}
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit}>
+                <div style={{ marginBottom:16 }}>
+                  <label style={{ display:'block', color:'#6b7b8f', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:6 }}>Email Address</label>
+                  <input
+                    type="email" autoComplete="email" required
+                    value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))}
+                    placeholder="your@email.com"
+                    style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:`1px solid rgba(255,255,255,0.1)`, borderRadius:10, padding:'12px 14px', color:'white', fontSize:14, outline:'none', fontFamily:'DM Sans,sans-serif', transition:'border 0.2s' }}
+                    onFocus={e => e.target.style.borderColor = primary}
+                    onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+                  />
+                </div>
+                <div style={{ marginBottom:24 }}>
+                  <label style={{ display:'block', color:'#6b7b8f', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:6 }}>Password</label>
+                  <input
+                    type="password" autoComplete="current-password" required
+                    value={form.password} onChange={e => setForm(f => ({...f, password: e.target.value}))}
+                    placeholder="••••••••"
+                    style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:`1px solid rgba(255,255,255,0.1)`, borderRadius:10, padding:'12px 14px', color:'white', fontSize:14, outline:'none', fontFamily:'DM Sans,sans-serif', transition:'border 0.2s' }}
+                    onFocus={e => e.target.style.borderColor = primary}
+                    onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+                  />
+                </div>
+                <button
+                  type="submit" disabled={submitting}
+                  style={{
+                    width:'100%', padding:'13px', borderRadius:12, border:'none',
+                    background: submitting ? '#1e2533' : `linear-gradient(135deg, ${primary}, #00a8d4)`,
+                    color: submitting ? '#6b7b8f' : '#02040a',
+                    fontFamily:'Sora,sans-serif', fontWeight:700, fontSize:15,
+                    cursor: submitting ? 'not-allowed' : 'pointer',
+                    transition:'all 0.2s',
+                    boxShadow: submitting ? 'none' : `0 4px 20px ${primary}40`,
+                  }}>
+                  {submitting ? 'Signing in…' : 'Sign In'}
+                </button>
+              </form>
+            )}
 
             <div style={{ textAlign:'center', marginTop:20 }}>
               <a href="/login" style={{ color:'#6b7b8f', fontSize:12, textDecoration:'none' }}

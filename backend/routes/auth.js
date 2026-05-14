@@ -114,7 +114,70 @@ router.post('/patient-register', async (req, res) => {
   }
 });
 
-// ── Patient Login ────────────────────────────────────────────────
+// ── Patient OTP Auth ─────────────────────────────────────────────
+router.post('/patient/request-otp', async (req, res) => {
+  try {
+    let { phone, hospitalId } = req.body;
+    if (!phone || !hospitalId) return res.status(400).json({ success: false, message: 'Phone and hospital required' });
+
+    phone = phone.replace(/[^0-9+]/g, '');
+
+    let patient = await Patient.findOne({ phone, hospitalId });
+    if (!patient) {
+      // First time? Create as guest until verified
+      patient = await Patient.create({
+        hospitalId, phone, name: 'Patient', isGuest: true
+      });
+    }
+
+    const otpCode = Math.floor(1000 + Math.random() * 9000).toString();
+    patient.otpCode = await bcrypt.hash(otpCode, 10);
+    patient.otpExpires = new Date(Date.now() + 10 * 60000); // 10 mins
+    await patient.save();
+
+    const { sendHospitalSms } = require('../utils/sms');
+    const hospital = await Hospital.findById(hospitalId);
+    
+    await sendHospitalSms({
+      hospitalId,
+      to: phone,
+      templateType: 'custom',
+      customText: `Your ${hospital?.name || 'Hospital'} verification code is: ${otpCode}. It expires in 10 minutes.`
+    });
+
+    res.json({ success: true, message: 'OTP sent to mobile' });
+  } catch (err) {
+    console.error('OTP Request Error:', err);
+    res.status(500).json({ success: false, message: 'Failed to send OTP' });
+  }
+});
+
+router.post('/patient/verify-otp', async (req, res) => {
+  try {
+    const { phone, hospitalId, otpCode, name } = req.body;
+    const patient = await Patient.findOne({ phone: phone.replace(/[^0-9+]/g, ''), hospitalId }).select('+otpCode +otpExpires');
+    
+    if (!patient || !patient.otpCode) return res.status(400).json({ success: false, message: 'Invalid request' });
+    if (new Date() > patient.otpExpires) return res.status(400).json({ success: false, message: 'OTP expired' });
+
+    const isValid = await bcrypt.compare(otpCode, patient.otpCode);
+    if (!isValid) return res.status(400).json({ success: false, message: 'Invalid OTP' });
+
+    patient.isPhoneVerified = true;
+    patient.isGuest = false; // Upgrade from guest
+    if (name && patient.name === 'Patient') patient.name = name;
+    patient.otpCode = undefined;
+    patient.otpExpires = undefined;
+    await patient.save();
+
+    const token = generateToken(patient._id);
+    res.json({ success: true, token, patient: { id: patient._id, name: patient.name, phone: patient.phone, role: 'patient' } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Verification failed' });
+  }
+});
+
+// ── Patient Login (Password) ─────────────────────────────────────
 router.post('/patient-login', async (req, res) => {
   try {
     const { email, password, hospitalId } = req.body;
@@ -126,6 +189,58 @@ router.post('/patient-login', async (req, res) => {
     res.json({ success: true, token, patient: { id: patient._id, name: patient.name, role: 'patient' } });
   } catch {
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── Patient Google SSO ───────────────────────────────────────────
+router.post('/patient/google', async (req, res) => {
+  try {
+    const { token, hospitalId, email, name, googleId, picture } = req.body;
+    // In production, verify 'token' using google-auth-library here.
+    // Since Client ID is pending, we mock the verification and trust the frontend payload for now.
+
+    if (!email || !hospitalId) return res.status(400).json({ success: false, message: 'Invalid payload' });
+
+    let patient = await Patient.findOne({ email, hospitalId });
+    if (!patient) {
+      // First time SSO login -> register them
+      patient = await Patient.create({
+        hospitalId, name, email, googleId, avatar: picture, isGuest: false, phone: 'Pending'
+      });
+    } else {
+      // Link Google ID if not present
+      if (!patient.googleId) patient.googleId = googleId;
+      if (!patient.avatar) patient.avatar = picture;
+      patient.isGuest = false;
+      await patient.save();
+    }
+
+    const jwtToken = generateToken(patient._id);
+    res.json({ success: true, token: jwtToken, patient: { id: patient._id, name: patient.name, email: patient.email, role: 'patient', avatar: patient.avatar } });
+  } catch (err) {
+    console.error('Google SSO Error:', err);
+    res.status(500).json({ success: false, message: 'SSO login failed' });
+  }
+});
+
+// ── Update Patient Profile ───────────────────────────────────────
+router.put('/patient/profile', protect, async (req, res) => {
+  try {
+    if (req.user.role !== 'patient') return res.status(403).json({ success: false, message: 'Patients only' });
+    const { name, phone, address, avatar } = req.body;
+    
+    const patient = await Patient.findById(req.user._id);
+    if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });
+
+    if (name) patient.name = name;
+    if (phone) patient.phone = phone;
+    if (address !== undefined) patient.address = address;
+    if (avatar) patient.avatar = avatar;
+
+    await patient.save();
+    res.json({ success: true, message: 'Profile updated' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to update profile' });
   }
 });
 

@@ -19,6 +19,14 @@ const patientSchema = new mongoose.Schema({
   bloodGroup:  String,
   notes:       String,
   isActive:    { type: Boolean, default: true },
+  
+  // -- Auth & Profile Features --
+  googleId:    { type: String, sparse: true, index: true },
+  avatar:      { type: String },
+  otpCode:     { type: String, select: false },
+  otpExpires:  { type: Date, select: false },
+  isPhoneVerified: { type: Boolean, default: false },
+
   // Opt-in for WhatsApp notifications
   whatsappOptIn: { type: Boolean, default: true }
 }, { timestamps: true });

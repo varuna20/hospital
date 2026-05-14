@@ -54,6 +54,12 @@ const prescriptionSchema = new mongoose.Schema({
   followUpDate: Date,
   followUpNotes: String,
 
+  // ── Reminders ─────────────────────────────────────────────────
+  reminderSent: {
+    threeDay: { type: Boolean, default: false },
+    dayOf: { type: Boolean, default: false }
+  },
+
   // ── Drugs ─────────────────────────────────────────────────────
   drugs: [drugSchema],
 

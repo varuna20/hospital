@@ -245,4 +245,89 @@ router.put('/:id/printed', protect, authorize('doctor', 'admin'), async (req, re
   }
 });
 
+// ── Patient's Own Prescriptions ──────────────────────────────────
+router.get('/my-prescriptions', protect, async (req, res) => {
+  try {
+    if (req.user.role !== 'patient') return res.status(403).json({ success: false, message: 'Patients only' });
+    const prescriptions = await Prescription.find({ patient: req.user._id })
+      .populate('doctor', 'name specialization')
+      .sort({ visitDate: -1 });
+    res.json({ success: true, prescriptions });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── Download Watermarked PDF ─────────────────────────────────────
+router.get('/:id/download-watermarked', protect, async (req, res) => {
+  try {
+    if (req.user.role !== 'patient') return res.status(403).json({ success: false, message: 'Patients only' });
+    
+    const prescription = await Prescription.findOne({ _id: req.params.id, patient: req.user._id })
+      .populate('doctor', 'name specialization qualifications')
+      .populate('hospitalId', 'name address phone');
+
+    if (!prescription) return res.status(404).json({ success: false, message: 'Not found' });
+
+    const PDFDocument = require('pdfkit');
+    const doc = new PDFDocument({ margin: 50 });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=Prescription_${prescription._id}.pdf`);
+    doc.pipe(res);
+
+    // Add Watermark
+    doc.save()
+       .translate(doc.page.width/2, doc.page.height/2)
+       .rotate(-30)
+       .fontSize(60)
+       .fillColor('red')
+       .opacity(0.1)
+       .text('DUPLICATE / ONLINE COPY', -250, -30)
+       .restore();
+
+    // Header
+    doc.fontSize(20).text(prescription.hospitalId?.name || 'Hospital', { align: 'center' });
+    doc.fontSize(10).text(prescription.hospitalId?.address || '', { align: 'center' });
+    doc.moveDown();
+
+    // Doctor Info
+    doc.fontSize(14).text(`Dr. ${prescription.doctor?.name}`);
+    doc.fontSize(10).text(prescription.doctor?.specialization || '');
+    doc.moveDown();
+
+    // Patient Info
+    const visitDate = prescription.visitDate.toISOString().split('T')[0];
+    doc.text(`Date: ${visitDate}`);
+    doc.moveDown();
+
+    // Drugs
+    doc.fontSize(14).text('Rx', { underline: true });
+    doc.moveDown(0.5);
+    doc.fontSize(12);
+    if (prescription.drugs && prescription.drugs.length > 0) {
+      prescription.drugs.forEach(d => {
+        doc.text(`• ${d.name} - ${d.dosage || ''} (${d.frequency || ''}) for ${d.duration || ''}`);
+        if (d.instructions) doc.fontSize(10).text(`  Inst: ${d.instructions}`, { color: 'gray' });
+      });
+    } else {
+      doc.text('No drugs prescribed.');
+    }
+
+    if (prescription.notes) {
+      doc.moveDown();
+      doc.text(`Notes: ${prescription.notes}`);
+    }
+
+    // Footer
+    doc.moveDown(4);
+    doc.fontSize(10).fillColor('gray').text('This is a digital copy for your records.', { align: 'center' });
+
+    doc.end();
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;

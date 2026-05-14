@@ -271,7 +271,7 @@ aptRouter.put('/:id/status', protect, authorize('staff', 'admin', 'doctor', 'sup
 aptRouter.get('/guest/:token', async (req, res) => {
   try {
     const apt = await Appointment.findOne({ guestToken: req.params.token })
-      .populate('patient', 'name').populate('doctor', 'name specialization room avgConsultMinutes');
+      .populate('patient', 'name').populate('doctor', 'name specialization room avgConsultMinutes todayStatus');
     if (!apt) return res.status(404).json({ success: false, message: 'Not found' });
     const today = moment().startOf('day').toDate();
     const queue = await Queue.findOne({ doctor: apt.doctor._id, date: today });
@@ -280,9 +280,25 @@ aptRouter.get('/guest/:token', async (req, res) => {
       queueNumber: { $gt: queue?.currentNumber || 0, $lt: apt.queueNumber },
       status: { $in: ['booked', 'arrived'] }
     });
+    const isArrived = apt.doctor.todayStatus?.isArrived || false;
     res.json({ success: true, queueNumber: apt.queueNumber, status: apt.status,
-      currentServing: queue?.currentNumber || 0, peopleAhead: ahead,
+      currentServing: queue?.currentNumber || 0, peopleAhead: ahead, isArrived,
       estimatedWaitMinutes: ahead * (apt.doctor.avgConsultMinutes || 5), doctor: apt.doctor.name, room: apt.doctor.room });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── Patient History ──────────────────────────────────────────────
+aptRouter.get('/patient-history', protect, async (req, res) => {
+  try {
+    if (req.user.role !== 'patient') return res.status(403).json({ success: false, message: 'Patients only' });
+    
+    const appointments = await Appointment.find({ patient: req.user._id })
+      .populate('doctor', 'name specialization')
+      .sort({ appointmentDate: -1 });
+      
+    res.json({ success: true, appointments });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

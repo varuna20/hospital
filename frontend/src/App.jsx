@@ -10,6 +10,7 @@ import HospitalLoginPage from './pages/HospitalLoginPage';
 import LoginPage          from './pages/LoginPage';
 import BookingPage        from './pages/patient/BookingPage';
 import QueueStatus        from './pages/patient/QueueStatus';
+import PatientDashboard   from './pages/patient/PatientDashboard';
 import DisplayScreen      from './pages/display/DisplayScreen';
 import DoctorDisplay      from './pages/display/DoctorDisplay';
 import KioskApp           from './pages/display/KioskApp';
@@ -57,7 +58,7 @@ function Protected({ children, roles }) {
   );
   if (!user) return <Navigate to="/login" replace />;
   if (roles && !roles.includes(user.role)) {
-    const map = { superadmin: '/super', admin: '/admin', staff: '/staff', doctor: '/doctor' };
+    const map = { superadmin: '/super', admin: '/admin', staff: '/staff', doctor: '/doctor', patient: '/patient-dashboard' };
     return <Navigate to={map[user.role] || '/'} replace />;
   }
   return children;
@@ -83,6 +84,7 @@ export default function App() {
               <Route path="/display/:hospitalId/:doctorId" element={<DoctorDisplay />} />
               <Route path="/kiosk/:hospitalId"        element={<KioskApp />} />
               <Route path="/prescription/print/:id"   element={<PrescriptionPrint />} />
+              <Route path="/patient-dashboard"        element={<Protected roles={['patient']}><PatientDashboard /></Protected>} />
 
               {/* Super Admin */}
               <Route path="/super" element={<Protected roles={['superadmin']}><SuperLayout /></Protected>}>

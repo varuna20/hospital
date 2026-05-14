@@ -78,7 +78,14 @@ export default function QueueStatus() {
           </span>
         </div>
 
-        {!isDone && (
+        {!isDone && status.isArrived === false && (
+          <div className="card text-center mb-4 border-dashed border-2" style={{ borderColor: 'var(--color-border)' }}>
+            <p className="text-sm font-medium" style={{ color: 'var(--color-text-muted)' }}>Session is not started yet</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>Please wait for the doctor to arrive.</p>
+          </div>
+        )}
+
+        {!isDone && status.isArrived !== false && (
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div className="card text-center">
               <p className="text-3xl font-bold text-white" style={{ fontFamily: 'Sora,sans-serif' }}>{status.currentServing}</p>

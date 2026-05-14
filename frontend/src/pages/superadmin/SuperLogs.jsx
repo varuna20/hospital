@@ -118,9 +118,12 @@ export default function SuperLogs() {
                     </td>
                     <td className="p-3 font-mono" style={{ color: 'var(--color-primary)' }}>{log.recipient}</td>
                     <td className="p-3">
-                      <p className="truncate max-w-[200px]" title={log.message} style={{ color: 'var(--color-text-muted)' }}>
-                        {log.message}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="truncate max-w-[150px]" style={{ color: 'var(--color-text-muted)' }}>
+                          {log.message}
+                        </p>
+                        <button onClick={() => setLogs(logs.map(l => l._id === log._id ? { ...l, expanded: true } : l))} className="text-[10px] text-blue-400 hover:underline shrink-0">More</button>
+                      </div>
                     </td>
                     <td className="p-3">
                       <div className="flex items-center gap-1.5">
@@ -134,7 +137,9 @@ export default function SuperLogs() {
                       {log.error ? (
                         <p className="text-[10px] text-red-400 max-w-[150px] truncate" title={log.error}>{log.error}</p>
                       ) : (
-                        <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>{log.provider}</p>
+                        <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+                          {log.providerResponse?.status || log.providerResponse?.message || log.provider}
+                        </p>
                       )}
                     </td>
                   </tr>
@@ -144,6 +149,38 @@ export default function SuperLogs() {
           </table>
         </div>
       </div>
+      
+      {/* Modal for full message */}
+      {logs.find(l => l.expanded) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="card max-w-lg w-full">
+            <h3 className="text-lg font-bold mb-4 text-white">Message Details</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold" style={{ color: 'var(--color-primary)' }}>Recipient</label>
+                <p className="text-sm text-white">{logs.find(l => l.expanded).recipient}</p>
+              </div>
+              <div>
+                <label className="text-xs font-bold" style={{ color: 'var(--color-primary)' }}>Full Message</label>
+                <div className="p-3 rounded bg-black/20 text-sm mt-1 whitespace-pre-wrap" style={{ color: 'var(--color-text-muted)' }}>
+                  {logs.find(l => l.expanded).message}
+                </div>
+              </div>
+              {logs.find(l => l.expanded).providerResponse && (
+                <div>
+                  <label className="text-xs font-bold" style={{ color: 'var(--color-primary)' }}>Delivery Status / Provider Response</label>
+                  <pre className="p-3 rounded bg-black/20 text-[10px] mt-1 overflow-x-auto text-white">
+                    {JSON.stringify(logs.find(l => l.expanded).providerResponse, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end mt-6">
+              <button className="btn-primary" onClick={() => setLogs(logs.map(l => ({ ...l, expanded: false })))}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
