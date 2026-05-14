@@ -257,11 +257,21 @@ router.put('/patient/profile', protect, async (req, res) => {
 // ── Current User ─────────────────────────────────────────────────
 router.get('/me', protect, async (req, res) => {
   try {
+    // Patient flow
+    if (req.user.role === 'patient') {
+      const patient = await Patient.findById(req.user._id);
+      if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });
+      const { otpCode, otpExpires, password, ...safe } = patient.toObject();
+      return res.json({ success: true, user: { ...safe, role: 'patient' } });
+    }
+    // Staff/Doctor/Admin flow
     const user = await User.findById(req.user._id)
       .populate('hospitalId', 'name theme slug logo logoUrl payment queueSettings whatsapp clinicHours')
       .populate('doctorProfile');
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
     res.json({ success: true, user: { ...user.toObject(), password: undefined } });
-  } catch {
+  } catch (err) {
+    console.error('/me error:', err.message);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });

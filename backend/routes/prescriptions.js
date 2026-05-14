@@ -183,6 +183,19 @@ router.get('/patient/:patientId', protect, authorize('doctor', 'admin', 'superad
   }
 });
 
+// ── Patient's Own Prescriptions (MUST be before /:id) ───────────
+router.get('/my-prescriptions', protect, async (req, res) => {
+  try {
+    if (req.user.role !== 'patient') return res.status(403).json({ success: false, message: 'Patients only' });
+    const prescriptions = await Prescription.find({ patient: req.user._id })
+      .populate('doctor', 'name specialization')
+      .sort({ visitDate: -1 });
+    res.json({ success: true, prescriptions });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // ── Single prescription ────────────────────────────────────────────
 router.get('/:id', protect, authorize('doctor', 'admin', 'superadmin'), async (req, res) => {
   try {
@@ -240,19 +253,6 @@ router.put('/:id/printed', protect, authorize('doctor', 'admin'), async (req, re
   try {
     await Prescription.findByIdAndUpdate(req.params.id, { isPrinted: true, printedAt: new Date() });
     res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-// ── Patient's Own Prescriptions ──────────────────────────────────
-router.get('/my-prescriptions', protect, async (req, res) => {
-  try {
-    if (req.user.role !== 'patient') return res.status(403).json({ success: false, message: 'Patients only' });
-    const prescriptions = await Prescription.find({ patient: req.user._id })
-      .populate('doctor', 'name specialization')
-      .sort({ visitDate: -1 });
-    res.json({ success: true, prescriptions });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
