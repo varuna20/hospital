@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import ChevFooter from '../../components/ChevFooter';
 import { fDate } from '../../utils/helpers';
 
 export default function PatientDashboard() {
-  const { user, login } = useAuth();
+  const { user, login, logout } = useAuth();
+  const navigate = useNavigate();
   const [tab, setTab] = useState('profile'); // profile | history | prescriptions
   const [loading, setLoading] = useState(true);
 
@@ -77,6 +79,12 @@ export default function PatientDashboard() {
     }
   };
 
+  const handleLogout = () => {
+    logout();
+    navigate('/', { replace: true });
+    toast.success('Logged out');
+  };
+
   return (
     <div className="min-h-screen bg-[var(--color-bg)] flex flex-col text-white font-sans">
       <div className="flex-1 max-w-4xl w-full mx-auto p-4 md:p-8">
@@ -90,10 +98,19 @@ export default function PatientDashboard() {
               {(user?.name || 'P')[0]}
             </div>
           )}
-          <div>
+          <div className="flex-1">
             <h1 className="text-2xl font-bold font-sora">{user?.name}</h1>
             <p className="text-sm text-[var(--color-text-muted)]">Patient Portal</p>
           </div>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors"
+            style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)' }}
+            onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--color-text-muted)'}
+          >
+            <span>⏻</span> Logout
+          </button>
         </div>
 
         {/* Tabs */}
