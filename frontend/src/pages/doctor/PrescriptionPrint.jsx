@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import api from '../../utils/api';
+import api, { fUrl } from '../../utils/api';
 import { fDate } from '../../utils/helpers';
 
 export default function PrescriptionPrint() {
@@ -61,7 +61,7 @@ export default function PrescriptionPrint() {
         <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:'14px' }}>
           <div style={{ flex:1 }}>
             {lh.showLogo && lh.hospitalLogo && (
-              <img src={lh.hospitalLogo} alt="logo" style={{ height:'52px', objectFit:'contain', marginBottom:'6px', display:'block' }} />
+              <img src={fUrl(lh.hospitalLogo)} alt="logo" style={{ height:'52px', objectFit:'contain', marginBottom:'6px', display:'block' }} />
             )}
             <div style={{ fontSize:'20px', fontWeight:'800', color:'#111', lineHeight:1.1 }}>{lh.hospitalName || 'Hospital'}</div>
             {lh.hospitalAddress && <div style={{ fontSize:'11px', color:'#555', marginTop:'2px' }}>{lh.hospitalAddress}</div>}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import api from '../../utils/api';
+import api, { fUrl } from '../../utils/api';
 import toast from 'react-hot-toast';
 import { fDate, todayISO } from '../../utils/helpers';
 
@@ -330,7 +330,7 @@ export default function PrescriptionForm() {
               </label>
               {lh.hospitalLogo&&(
                 <div><label className="label">Logo Preview</label>
-                  <img src={lh.hospitalLogo} alt="logo" className="h-12 rounded object-contain" onError={e=>e.target.style.display='none'} /></div>
+                  <img src={fUrl(lh.hospitalLogo)} alt="logo" className="h-12 rounded object-contain" onError={e=>e.target.style.display='none'} /></div>
               )}
             </div>
           </div>

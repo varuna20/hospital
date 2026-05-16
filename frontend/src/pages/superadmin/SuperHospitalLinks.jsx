@@ -5,7 +5,7 @@
  * Super admin can copy or open any hospital's login page.
  */
 import React, { useState, useEffect } from 'react';
-import api from '../../utils/api';
+import api, { fUrl } from '../../utils/api';
 import toast from 'react-hot-toast';
 
 export default function SuperHospitalLinks() {
@@ -84,7 +84,7 @@ export default function SuperHospitalLinks() {
 
                 <div className="flex items-center gap-3 mb-4">
                   {h.logo ? (
-                    <img src={h.logo} alt="" className="h-10 object-contain rounded-lg flex-shrink-0" />
+                    <img src={fUrl(h.logo)} alt="" className="h-10 object-contain rounded-lg flex-shrink-0" />
                   ) : (
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white flex-shrink-0"
                       style={{ background: primary }}>

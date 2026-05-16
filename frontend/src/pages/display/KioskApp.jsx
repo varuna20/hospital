@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import api from '../../utils/api';
+import api, { fUrl } from '../../utils/api';
 import toast from 'react-hot-toast';
 
 export default function KioskApp() {
@@ -115,7 +115,7 @@ export default function KioskApp() {
       {/* Header */}
       <header className="p-6 flex items-center justify-between border-b" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
         <div className="flex items-center gap-4">
-          {hospital?.logo ? <img src={hospital.logo} className="h-12" alt="logo" /> : <div className="text-3xl">🏥</div>}
+          {hospital?.logo ? <img src={fUrl(hospital.logo)} className="h-12" alt="logo" /> : <div className="text-3xl">🏥</div>}
           <h1 className="text-2xl font-bold">{hospital?.name || 'Self-Service Kiosk'}</h1>
         </div>
         {step > 1 && step < 5 && (

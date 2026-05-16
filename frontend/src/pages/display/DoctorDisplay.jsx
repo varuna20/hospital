@@ -22,7 +22,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useSocket } from '../../context/SocketContext';
-import api from '../../utils/api';
+import api, { fUrl } from '../../utils/api';
 
 // ══════════════════════════════════════════════════════════════════
 //  GLOBAL STYLES
@@ -147,8 +147,9 @@ function Slideshow({ items }) {
   // Pre-cache media only when active items change
   useEffect(() => {
     active.forEach(item => {
-      if (item.type !== 'video') { const img = new Image(); img.src = item.url; }
-      else { const v = document.createElement('video'); v.src = item.url; v.preload = 'auto'; }
+      const formattedUrl = fUrl(item.url);
+      if (item.type !== 'video') { const img = new Image(); img.src = formattedUrl; }
+      else { const v = document.createElement('video'); v.src = formattedUrl; v.preload = 'auto'; }
     });
   }, [active]);
 
@@ -176,9 +177,9 @@ function Slideshow({ items }) {
       `}</style>
       <div key={cur?._id || idx} className="slide-fade" style={{ width:'100%', height:'100%' }}>
         {cur?.type === 'video' ? (
-          <video src={cur.url} style={{ width:'100%', height:'100%', objectFit:'cover' }} autoPlay muted playsInline onEnded={next} />
+          <video src={fUrl(cur.url)} style={{ width:'100%', height:'100%', objectFit:'cover' }} autoPlay muted playsInline onEnded={next} />
         ) : (
-          <img src={cur?.url} style={{ width:'100%', height:'100%', objectFit:'cover' }} alt="Slide" />
+          <img src={fUrl(cur?.url)} style={{ width:'100%', height:'100%', objectFit:'cover' }} alt="Slide" />
         )}
       </div>
     </div>
@@ -328,7 +329,7 @@ export default function DoctorDisplay() {
         title="Click to enter fullscreen"
       >
         <div style={{ display:'flex', alignItems:'center', gap:20 }}>
-          {hospital.logo && <img src={hospital.logo} style={{ height:FS.headerH*2.5 }} alt="logo" />}
+          {hospital.logo && <img src={fUrl(hospital.logo)} style={{ height:FS.headerH*2.5 }} alt="logo" />}
           <div>
             <div style={{ fontFamily:'Sora', fontWeight:800, color:'white', fontSize:FS.doctorN }}>{hospital.name}</div>
             <div style={{ color:'rgba(255,255,255,0.4)', fontSize:FS.status }}>{doctor?.name} · {doctor?.specialization} · <span style={{ color:primary }}>{doctor?.room}</span></div>

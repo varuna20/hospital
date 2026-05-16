@@ -7,7 +7,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import api from '../../utils/api';
+import api, { fUrl } from '../../utils/api';
 import toast from 'react-hot-toast';
 import { todayISO, fMoney, DAYS } from '../../utils/helpers';
 import ChevFooter from '../../components/ChevFooter.jsx';
@@ -203,7 +203,7 @@ export default function BookingPage() {
       <header className="border-b border-white/5 p-3 md:p-4 flex items-center justify-between shrink-0 bg-[var(--color-bg)] sticky top-0 z-10">
         <div className="flex items-center gap-2 md:gap-3 min-w-0">
           {selHospital?.logo ? (
-            <img src={selHospital.logo} alt="" className="h-8 md:h-10 object-contain shrink-0" />
+            <img src={fUrl(selHospital.logo)} alt="" className="h-8 md:h-10 object-contain shrink-0" />
           ) : (
             <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg bg-[var(--color-primary)] flex items-center justify-center text-lg font-black text-black shrink-0">
               {selHospital ? selHospital.name.charAt(0) : '🏥'}
@@ -239,7 +239,7 @@ export default function BookingPage() {
                   <SelectCard key={h._id} selected={selHospital?._id === h._id} onClick={() => setSelHospital(h)}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                       {h.logo ? (
-                        <img src={h.logo} alt="" style={{ width: 44, height: 44, objectFit: 'contain', borderRadius: 8, flexShrink: 0 }} />
+                        <img src={fUrl(h.logo)} alt="" style={{ width: 44, height: 44, objectFit: 'contain', borderRadius: 8, flexShrink: 0 }} />
                       ) : (
                         <div style={{ width: 44, height: 44, borderRadius: 10, background: h.theme?.primary || 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 900, color: '#02040a', flexShrink: 0 }}>
                           {h.name.charAt(0)}

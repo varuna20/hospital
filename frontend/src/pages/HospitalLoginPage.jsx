@@ -11,7 +11,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import api from '../utils/api';
+import api, { fUrl } from '../utils/api';
 import toast from 'react-hot-toast';
 import ChevFooter from '../components/ChevFooter.jsx';
 import { GoogleLogin } from '@react-oauth/google';
@@ -177,7 +177,7 @@ export default function HospitalLoginPage() {
           {/* Hospital branding */}
           <div style={{ textAlign:'center', marginBottom:36 }}>
             {hospital?.logo ? (
-              <img src={hospital.logo} alt={hospital.name} style={{ height:64, objectFit:'contain', marginBottom:16, display:'block', margin:'0 auto 16px' }} />
+              <img src={fUrl(hospital.logo)} alt={hospital.name} style={{ height:64, objectFit:'contain', marginBottom:16, display:'block', margin:'0 auto 16px' }} />
             ) : (
               <div style={{ width:72, height:72, borderRadius:18, background:`linear-gradient(135deg, ${primary}, ${primary}88)`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:32, fontWeight:900, color:'#02040a', fontFamily:'Sora,sans-serif', margin:'0 auto 16px' }}>
                 {(hospital?.name || '?').charAt(0)}

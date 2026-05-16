@@ -7,7 +7,7 @@
  */
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import api from '../../utils/api';
+import api, { fUrl } from '../../utils/api';
 import { useSocket } from '../../context/SocketContext';
 
 function Slideshow({ items }) {
@@ -25,8 +25,9 @@ function Slideshow({ items }) {
   // Pre-cache media only when active items change
   useEffect(() => {
     active.forEach(item => {
-      if (item.type !== 'video') { const img = new Image(); img.src = item.url; }
-      else { const v = document.createElement('video'); v.src = item.url; v.preload = 'auto'; }
+      const formattedUrl = fUrl(item.url);
+      if (item.type !== 'video') { const img = new Image(); img.src = formattedUrl; }
+      else { const v = document.createElement('video'); v.src = formattedUrl; v.preload = 'auto'; }
     });
   }, [active]);
 
@@ -54,9 +55,9 @@ function Slideshow({ items }) {
       `}</style>
       <div key={cur?._id || idx} className="slide-fade" style={{ width:'100%', height:'100%' }}>
         {cur?.type === 'video' ? (
-          <video src={cur.url} style={{ width:'100%', height:'100%', objectFit:'cover' }} autoPlay muted playsInline onEnded={next} />
+          <video src={fUrl(cur.url)} style={{ width:'100%', height:'100%', objectFit:'cover' }} autoPlay muted playsInline onEnded={next} />
         ) : (
-          <img src={cur?.url} style={{ width:'100%', height:'100%', objectFit:'cover' }} alt="Slide" />
+          <img src={fUrl(cur?.url)} style={{ width:'100%', height:'100%', objectFit:'cover' }} alt="Slide" />
         )}
       </div>
     </div>
@@ -165,7 +166,7 @@ export default function DisplayScreen() {
         >
           <div className="flex items-center gap-4">
             {hospital?.logo ? (
-              <img src={hospital.logo} alt="logo" className="h-12 object-contain" />
+              <img src={fUrl(hospital.logo)} alt="logo" className="h-12 object-contain" />
             ) : (
               <div className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white text-xl" style={{ background: primary }}>
                 {(hospital?.name || 'H').charAt(0)}
