@@ -15,6 +15,7 @@ const router   = express.Router();
 const Doctor   = require('../models/Doctor');
 const User     = require('../models/User');
 const Appointment = require('../models/Appointment');
+const DoctorRequest = require('../models/DoctorRequest');
 const Hospital = require('../models/Hospital');
 const { protect, authorize } = require('../middleware/auth');
 const { sendDoctorSessionSummary, sendDoctorArrival } = require('../utils/whatsapp');
@@ -54,18 +55,19 @@ const optionalProtect = async (req, res, next) => {
 router.get('/', optionalProtect, async (req, res) => {
   try {
     let hospitalId = req.query.hospitalId;
+    let query = { isActive: true };
+
     if (!hospitalId && req.user) {
-      if (req.user.role === 'superadmin') {
-        return res.status(400).json({ success: false, message: 'hospitalId required for superadmin' });
-      }
       const hid = req.user.hospitalId;
       hospitalId = hid?._id ? hid._id.toString() : hid?.toString();
     }
-    if (!hospitalId) return res.json({ success: true, doctors: [] });
 
-    const doctors = await Doctor.find({ hospitalId, isActive: true })
-      .select('name email phone specialization qualifications experience bio fees room profileImage language todayStatus sessions userId isActive')
+    if (hospitalId) query.hospitalId = hospitalId;
+
+    const doctors = await Doctor.find(query)
+      .populate('hospitalId', 'name logo city')
       .sort({ name: 1 });
+
     res.json({ success: true, doctors });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -341,6 +343,49 @@ router.post('/:id/notify-session', protect, authorize('staff', 'admin', 'superad
   }
 });
 
+// ── Doctor: Detailed Revenue Report for Charts ─────────────────────
+router.get('/:id/revenue-report', protect, async (req, res) => {
+  try {
+    const doctorId = require('mongoose').Types.ObjectId.createFromHexString(req.params.id);
+    const now = moment();
+    
+    // 1. Weekly (Last 7 days)
+    const sevenDaysAgo = moment().subtract(6, 'days').startOf('day').toDate();
+    const weeklyAgg = await Appointment.aggregate([
+      { $match: { doctor: doctorId, appointmentDate: { $gte: sevenDaysAgo }, paymentStatus: 'paid' } },
+      { $group: { 
+        _id: { $dateToString: { format: "%Y-%m-%d", date: "$appointmentDate" } }, 
+        revenue: { $sum: '$fees.doctorFee' } 
+      } },
+      { $sort: { "_id": 1 } }
+    ]);
+
+    // 2. Monthly (Last 6 months)
+    const sixMonthsAgo = moment().subtract(5, 'months').startOf('month').toDate();
+    const monthlyAgg = await Appointment.aggregate([
+      { $match: { doctor: doctorId, appointmentDate: { $gte: sixMonthsAgo }, paymentStatus: 'paid' } },
+      { $group: { 
+        _id: { $dateToString: { format: "%Y-%m", date: "$appointmentDate" } }, 
+        revenue: { $sum: '$fees.doctorFee' } 
+      } },
+      { $sort: { "_id": 1 } }
+    ]);
+
+    // 3. Status Breakdown (Pie Chart)
+    const statusAgg = await Appointment.aggregate([
+      { $match: { doctor: doctorId, appointmentDate: { $gte: moment().subtract(30, 'days').toDate() } } },
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+
+    res.json({
+      success: true,
+      weekly: weeklyAgg.map(i => ({ name: moment(i._id).format('ddd'), revenue: i.revenue })),
+      monthly: monthlyAgg.map(i => ({ name: moment(i._id).format('MMM'), revenue: i.revenue })),
+      pie: statusAgg.map(i => ({ name: i._id, value: i.count }))
+    });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
 // ── Doctor Stats ───────────────────────────────────────────────────
 router.get('/:id/stats', protect, async (req, res) => {
   try {
@@ -419,6 +464,129 @@ router.post('/:id/create-login', protect, authorize('admin', 'superadmin'), asyn
     await doctor.save();
     await User.findByIdAndUpdate(user._id, { doctorProfile: doctor._id });
     res.status(201).json({ success: true, message: 'Login created', email: user.email });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// ── Doctor: Get Calendar Booking Counts ───────────────────────────
+router.get('/:id/calendar-counts', protect, async (req, res) => {
+  try {
+    const start = moment().startOf('day').toDate();
+    const end   = moment().add(30, 'days').endOf('day').toDate();
+
+    const counts = await Appointment.aggregate([
+      { $match: { doctor: require('mongoose').Types.ObjectId.createFromHexString(req.params.id), appointmentDate: { $gte: start, $lte: end }, status: 'booked' } },
+      { $group: { 
+        _id: { date: { $dateToString: { format: "%Y-%m-%d", date: "$appointmentDate" } }, sessionId: "$sessionId" }, 
+        count: { $sum: 1 },
+        label: { $first: "$sessionLabel" }
+      } }
+    ]);
+
+    res.json({ success: true, counts });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// ── Doctor: Request Change (Reschedule/Cancel) ────────────────────
+router.post('/request-change', protect, authorize('doctor'), async (req, res) => {
+  try {
+    const { doctorId, type, date, sessionId, sessionLabel, proposedDate, reason } = req.body;
+    const request = await DoctorRequest.create({
+      hospitalId: req.user.hospitalId,
+      doctorId,
+      type,
+      date,
+      sessionId,
+      sessionLabel,
+      proposedDate,
+      reason,
+      createdBy: req.user._id
+    });
+
+    const doctor = await Doctor.findById(doctorId);
+    const Notification = require('../models/Notification');
+    const moment = require('moment');
+
+    // Notify Staff & Admin
+    const notifs = await Notification.insertMany([
+      { hospitalId: req.user.hospitalId, role: 'staff', title: 'New Doctor Request', message: `Dr. ${doctor.name} requested to ${type} session on ${moment(date).format('LL')}`, type: 'doctor_request', link: '/staff/queue' },
+      { hospitalId: req.user.hospitalId, role: 'admin', title: 'New Doctor Request', message: `Dr. ${doctor.name} requested to ${type} session on ${moment(date).format('LL')}`, type: 'doctor_request', link: '/admin/doctors' }
+    ]);
+
+    const io = req.app.get('io');
+    if (io) {
+      notifs.forEach(n => {
+        io.to(`hospital_${req.user.hospitalId}_${n.role}`).emit('new_notification', n);
+      });
+    }
+
+    res.status(201).json({ success: true, request });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// ── Staff: List All Doctor Requests ───────────────────────────────
+router.get('/requests/pending', protect, authorize('staff', 'admin', 'superadmin'), async (req, res) => {
+  try {
+    const hospitalId = getHospitalId(req);
+    const requests = await DoctorRequest.find({ hospitalId, status: 'pending' })
+      .populate('doctorId', 'name specialization')
+      .sort({ createdAt: -1 });
+    res.json({ success: true, requests });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// ── Staff: Approve/Reject Request ─────────────────────────────────
+router.put('/requests/:id/status', protect, authorize('staff', 'admin', 'superadmin'), async (req, res) => {
+  try {
+    const { status, staffNotes } = req.body;
+    const request = await DoctorRequest.findByIdAndUpdate(req.params.id, { status, staffNotes }, { new: true });
+    
+    // Notify Doctor if approved
+    if (status === 'approved') {
+      const doctor = await Doctor.findById(request.doctorId);
+      const hospital = await Hospital.findById(request.hospitalId);
+      
+      if (doctor.notificationSettings?.notifyReschedule !== false) {
+        const hospitalName = hospital.shortName || hospital.name;
+        const msg = `${hospitalName}: Your request to ${request.type} session on ${moment(request.date).format('DD/MM/YYYY')} has been APPROVED.`;
+        
+        // SMS
+        const { sendHospitalSms } = require('../utils/sms');
+        sendHospitalSms({
+          hospitalId: hospital._id,
+          to: doctor.phone,
+          message: msg
+        }).catch(() => {});
+
+        // WhatsApp
+        if (hospital?.whatsapp?.enabled) {
+          const { sendCustomMessage } = require('../utils/whatsapp');
+          sendCustomMessage(hospital, { phone: doctor.phone, name: doctor.name }, msg).catch(() => {});
+        }
+      }
+    }
+
+    res.json({ success: true, request });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// ── Doctor: Update Vacation Mode ──────────────────────────────────
+router.put('/:id/vacation', protect, authorize('doctor', 'admin', 'superadmin'), async (req, res) => {
+  try {
+    const { enabled, startDate, endDate, untilFurtherNotice, note } = req.body;
+    
+    // Authorization check
+    if (req.user.role === 'doctor') {
+      const doctor = await Doctor.findOne({ userId: req.user._id });
+      if (!doctor || doctor._id.toString() !== req.params.id) {
+        return res.status(403).json({ success: false, message: 'Access denied' });
+      }
+    }
+
+    const doctor = await Doctor.findByIdAndUpdate(req.params.id, {
+      vacation: { enabled, startDate, endDate, untilFurtherNotice, note }
+    }, { new: true });
+
+    res.json({ success: true, vacation: doctor.vacation });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 

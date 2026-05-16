@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import ChevFooter from '../../components/ChevFooter';
+import { fUrl } from '../../utils/api';
 import { fDate } from '../../utils/helpers';
 
 export default function PatientDashboard() {
@@ -91,13 +92,20 @@ export default function PatientDashboard() {
         
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
-          {profile.avatar ? (
-            <img src={profile.avatar} alt="Avatar" className="w-16 h-16 rounded-full border-2 border-[var(--color-primary)] object-cover" />
-          ) : (
-            <div className="w-16 h-16 rounded-full bg-[var(--color-surface)] border-2 border-[var(--color-primary)] flex items-center justify-center text-2xl font-bold">
-              {(user?.name || 'P')[0]}
+          <Link to="/profile" className="relative group">
+            <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-[var(--color-primary)] bg-white/5 group-hover:scale-105 transition-all">
+              {user?.avatar ? (
+                <img src={fUrl(user.avatar)} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-2xl font-bold">
+                  {(user?.name || 'P')[0]}
+                </div>
+              )}
             </div>
-          )}
+            <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-[var(--color-primary)] rounded-full flex items-center justify-center text-[10px] text-black border-2 border-[var(--color-bg)]">
+              ⚙️
+            </div>
+          </Link>
           <div className="flex-1">
             <h1 className="text-2xl font-bold font-sora">{user?.name}</h1>
             <p className="text-sm text-[var(--color-text-muted)]">Patient Portal</p>

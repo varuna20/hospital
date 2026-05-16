@@ -235,6 +235,15 @@ const templates = {
     `${hospitalName}: Hi ${patientName}, the session with Dr ${doctorName} on ${date} (${sessionLabel || 'session'}) has been cancelled.\n` +
     `Reason: ${reason}.\n` +
     `Please contact us to reschedule.`,
+
+  reminder: ({ hospitalName, doctorName, patientName, date, time }) =>
+    `${hospitalName}: Hi ${patientName}, your follow-up with Dr ${doctorName} is on ${date}${time ? ' at '+time : ''}.\n` +
+    `Please book your number early.`,
+
+  change: ({ hospitalName, doctorName, patientName, newDate, newTime, queueNumber }) =>
+    `${hospitalName}: Hi ${patientName}, your appointment with Dr ${doctorName} has been moved to ${newDate} (${newTime || 'Session'}).\n` +
+    `Your new Queue Number is #${queueNumber}.\n` +
+    `We apologize for the schedule change.`,
 };
 
 // Aliases for backward compatibility

@@ -126,6 +126,7 @@ function DoctorForm({ doctor: editDoc, onSave, onCancel }) {
         fees: { doctorFee: d.fees?.doctorFee||0, hospitalCharge: d.fees?.hospitalCharge||0 },
         sessions: d.sessions?.length ? d.sessions : defaultSessions,
         isActive: d.isActive !== false,
+        notificationSettings: d.notificationSettings || { notifyReschedule: true, notifySessionSummary: true, summaryLeadTimeMinutes: 60 }
       });
     }).catch(()=>toast.error('Failed to load doctor profile'));
   }, [isEdit, editDoc?._id]);
@@ -202,6 +203,30 @@ function DoctorForm({ doctor: editDoc, onSave, onCancel }) {
               <div className="absolute top-1 w-4 h-4 bg-white rounded-full transition-transform" style={{ transform:form.isActive?'translateX(18px)':'translateX(4px)' }} />
             </div>
             <span className="text-sm text-white">{form.isActive?'Active':'Disabled'}</span>
+          </div>
+
+          <p className="text-xs font-semibold uppercase tracking-wider mt-6 mb-3" style={{ color:'var(--color-text-muted)' }}>Notification Settings</p>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-3 rounded-xl bg-[var(--color-surface2)]">
+              <span className="text-sm text-white">Reschedule Alerts</span>
+              <input type="checkbox" className="w-5 h-5 accent-primary" 
+                checked={form.notificationSettings?.notifyReschedule !== false} 
+                onChange={e => set('notificationSettings', {...(form.notificationSettings||{}), notifyReschedule: e.target.checked})} />
+            </div>
+            <div className="flex items-center justify-between p-3 rounded-xl bg-[var(--color-surface2)]">
+              <span className="text-sm text-white">Session Summary</span>
+              <input type="checkbox" className="w-5 h-5 accent-primary" 
+                checked={form.notificationSettings?.notifySessionSummary !== false} 
+                onChange={e => set('notificationSettings', {...(form.notificationSettings||{}), notifySessionSummary: e.target.checked})} />
+            </div>
+            {form.notificationSettings?.notifySessionSummary !== false && (
+              <div>
+                <label className="label">Summary Lead Time (mins)</label>
+                <input type="number" className="input" 
+                  value={form.notificationSettings?.summaryLeadTimeMinutes || 60} 
+                  onChange={e => set('notificationSettings', {...(form.notificationSettings||{}), summaryLeadTimeMinutes: Number(e.target.value)})} />
+              </div>
+            )}
           </div>
         </div>
         {/* Col 3: Schedule */}

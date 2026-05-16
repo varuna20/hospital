@@ -14,6 +14,20 @@ const Patient  = require('../models/Patient');
 const Hospital = require('../models/Hospital');
 const bcrypt   = require('bcryptjs');
 const { generateToken, protect } = require('../middleware/auth');
+const multer   = require('multer');
+const path     = require('path');
+const fs       = require('fs');
+
+// Profile photo upload config
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, '../uploads/avatars');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => cb(null, `user_${req.user._id}_${Date.now()}${path.extname(file.originalname)}`)
+});
+const upload = multer({ storage, limits: { fileSize: 2 * 1024 * 1024 } });
 
 // ── Staff / Doctor / Admin / SuperAdmin Login ──────────────────
 router.post('/login', async (req, res) => {
@@ -233,24 +247,74 @@ router.post('/patient/google', async (req, res) => {
   }
 });
 
-// ── Update Patient Profile ───────────────────────────────────────
-router.put('/patient/profile', protect, async (req, res) => {
+// ── Update Profile (Unified for all roles) ─────────────────────
+router.put('/profile', protect, upload.single('avatar'), async (req, res) => {
   try {
-    if (req.user.role !== 'patient') return res.status(403).json({ success: false, message: 'Patients only' });
-    const { name, phone, address, avatar } = req.body;
+    const { name, phone, currentPassword, newPassword, email, notificationSettings } = req.body;
+    let user;
+
+    if (req.user.role === 'patient') {
+      user = await Patient.findById(req.user._id).select('+password');
+    } else {
+      user = await User.findById(req.user._id).select('+password');
+    }
+
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    // Notification settings (Doctors only)
+    if (notificationSettings && req.user.role === 'doctor') {
+      try {
+        const parsed = typeof notificationSettings === 'string' ? JSON.parse(notificationSettings) : notificationSettings;
+        if (user.doctorProfile) {
+          const Doctor = require('../models/Doctor');
+          await Doctor.findByIdAndUpdate(user.doctorProfile, { notificationSettings: parsed });
+        }
+      } catch (e) { console.error('Failed to parse notificationSettings'); }
+    }
+
+    // Password change logic
+    if (newPassword) {
+      if (!currentPassword) return res.status(400).json({ success: false, message: 'Current password required to change password' });
+      const isMatch = await user.comparePassword(currentPassword);
+      if (!isMatch) return res.status(400).json({ success: false, message: 'Invalid current password' });
+      user.password = newPassword;
+    }
+
+    // Common fields
+    if (name) user.name = name;
+    if (phone) user.phone = phone;
+    if (email && req.user.role !== 'patient') user.email = email;
+
+    // Avatar upload
+    if (req.file) {
+      const avatarPath = `/uploads/avatars/${req.file.filename}`;
+      user.avatar = avatarPath;
+    }
+
+    // Sync with Doctor model if applicable
+    if (req.user.role === 'doctor' && user.doctorProfile) {
+      const Doctor = require('../models/Doctor');
+      const updateData = {};
+      if (name) updateData.name = name;
+      if (phone) updateData.phone = phone;
+      if (req.file) updateData.profileImage = user.avatar;
+      await Doctor.findByIdAndUpdate(user.doctorProfile, updateData);
+    }
+
+    await user.save();
     
-    const patient = await Patient.findById(req.user._id);
-    if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });
+    // Fetch fresh data for response
+    let updatedUser;
+    if (req.user.role === 'patient') {
+      updatedUser = await Patient.findById(user._id);
+    } else {
+      updatedUser = await User.findById(user._id).populate('hospitalId').populate('doctorProfile');
+    }
 
-    if (name) patient.name = name;
-    if (phone) patient.phone = phone;
-    if (address !== undefined) patient.address = address;
-    if (avatar) patient.avatar = avatar;
-
-    await patient.save();
-    res.json({ success: true, message: 'Profile updated' });
+    res.json({ success: true, message: 'Profile updated', user: updatedUser });
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Failed to update profile' });
+    console.error('Profile update error:', err);
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 

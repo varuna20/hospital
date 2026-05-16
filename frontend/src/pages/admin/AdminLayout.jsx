@@ -1,7 +1,8 @@
-import ChevFooter from '../../components/ChevFooter.jsx';
 import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from '../../components/common/Sidebar';
+import ChevFooter from '../../components/ChevFooter.jsx';
+import Topbar from '../../components/common/Topbar';
 
 export default function AdminLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -11,15 +12,7 @@ export default function AdminLayout() {
       <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
       
       <main className="flex-1 overflow-auto flex flex-col min-h-0 min-w-0">
-        {/* Mobile Header */}
-        <div className="lg:hidden p-4 border-b flex items-center justify-between sticky top-0 z-30" 
-          style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
-          <button onClick={() => setMobileOpen(true)} className="p-2 -ml-2">
-            <span className="text-2xl">☰</span>
-          </button>
-          <span className="font-bold text-sm tracking-tight text-white">ADMIN PANEL</span>
-          <div className="w-8" /> {/* Spacer */}
-        </div>
+        <Topbar title="Admin Panel" onMenuClick={() => setMobileOpen(true)} />
 
         <div className="p-4 md:p-6 flex-1 flex flex-col">
           <Outlet />

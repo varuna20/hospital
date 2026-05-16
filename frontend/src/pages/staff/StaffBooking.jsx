@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import moment from 'moment';
 import { todayISO, fMoney } from '../../utils/helpers';
 
 export default function StaffBooking() {
@@ -25,6 +26,7 @@ export default function StaffBooking() {
   });
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [calendarCounts, setCalendarCounts] = useState([]);
 
   useEffect(() => {
     api.get('/doctors')
@@ -45,6 +47,11 @@ export default function StaffBooking() {
     const sessions = (doc.sessions || []).filter(s => s.dayOfWeek === dayOfWeek && s.isActive);
     setAvailableSessions(sessions);
     
+    // Fetch counts
+    api.get(`/doctors/${form.doctorId}/calendar-counts`)
+      .then(({ data }) => setCalendarCounts(data.counts || []))
+      .catch(() => {});
+
     // Auto-select first session if only one exists
     if (sessions.length === 1) {
       const s = sessions[0];
@@ -54,6 +61,37 @@ export default function StaffBooking() {
       setForm(f => ({ ...f, sessionId: '', sessionLabel: '' }));
     }
   }, [form.doctorId, form.appointmentDate, doctors]);
+
+  const getDayStatus = (d) => {
+    if (!form.doctorId) return 'none';
+    const doc = doctors.find(x => x._id === form.doctorId);
+    if (!doc) return 'none';
+
+    const dStr = d.format('YYYY-MM-DD');
+    
+    // 1. Vacation Check
+    if (doc.vacation?.enabled) {
+      const isIndefinite = doc.vacation.untilFurtherNotice;
+      const inRange = doc.vacation.startDate && doc.vacation.endDate && 
+                      d.isSameOrAfter(moment(doc.vacation.startDate), 'day') && 
+                      d.isSameOrBefore(moment(doc.vacation.endDate), 'day');
+      if (isIndefinite || inRange) return 'vacation';
+    }
+
+    // 2. Check if doctor comes on this day
+    const dayOfWeek = d.day();
+    const daySessions = (doc.sessions || []).filter(s => s.dayOfWeek === dayOfWeek && s.isActive);
+    if (daySessions.length === 0) return 'off';
+
+    // 3. Check if all sessions are full
+    const dayCounts = calendarCounts.filter(c => c._id.date === dStr);
+    const allFull = daySessions.every(s => {
+      const countObj = dayCounts.find(c => c._id.sessionId === (s._id || `${s.sessionName}-${s.startTime}`));
+      return (countObj?.count || 0) >= s.maxPatients;
+    });
+
+    return allFull ? 'full' : 'available';
+  };
 
   useEffect(() => {
     if (search.length < 2) { setSearchResults([]); return; }
@@ -217,19 +255,89 @@ export default function StaffBooking() {
           {/* Appointment details */}
           <div className="card">
             <h3 className="section-title mb-4">Appointment Details</h3>
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div><label className="label">Doctor *</label>
-                <select className="input" value={form.doctorId} onChange={e => setForm(f => ({ ...f, doctorId: e.target.value }))}>
-                  <option value="">Select Doctor</option>
-                  {doctors.map(d => <option key={d._id} value={d._id}>{d.name} — {d.specialization}</option>)}
-                </select>
+            <div className="mb-4">
+              <label className="label">Doctor *</label>
+              <select className="input" value={form.doctorId} onChange={e => setForm(f => ({ ...f, doctorId: e.target.value }))}>
+                <option value="">Select Doctor</option>
+                {doctors.map(d => <option key={d._id} value={d._id}>{d.name} — {d.specialization}</option>)}
+              </select>
+            </div>
+
+            <div className="mb-6">
+              <label className="label">Select Date *</label>
+              <div className="grid grid-cols-7 gap-1 mt-2">
+                {['S','M','T','W','T','F','S'].map((day,idx) => (
+                  <div key={idx} className="text-[10px] font-bold text-center opacity-30 py-1">{day}</div>
+                ))}
+                {Array.from({ length: 28 }).map((_, i) => {
+                  const d = moment().add(i, 'days');
+                  const dStr = d.format('YYYY-MM-DD');
+                  const isSelected = form.appointmentDate === dStr;
+                  const status = getDayStatus(d);
+                  
+                  let bgColor = 'var(--color-surface2)';
+                  let borderColor = 'var(--color-border)';
+                  let dotColor = 'transparent';
+
+                  if (status === 'available') {
+                    dotColor = '#22c55e'; // Green
+                    bgColor = 'rgba(34,197,94,0.05)';
+                    if (isSelected) { bgColor = 'rgba(34,197,94,0.2)'; borderColor = '#22c55e'; }
+                  } else if (status === 'full' || status === 'off' || status === 'vacation') {
+                    dotColor = '#ef4444'; // Red
+                    bgColor = 'rgba(239,68,68,0.05)';
+                    if (isSelected) { bgColor = 'rgba(239,68,68,0.2)'; borderColor = '#ef4444'; }
+                  }
+
+                  return (
+                    <button key={dStr} type="button" onClick={() => setForm(f => ({ ...f, appointmentDate: dStr }))}
+                      style={{
+                        aspectRatio: '1/1', borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                        background: bgColor, border: `1.5px solid ${borderColor}`, cursor: 'pointer', transition: 'all 0.2s', position: 'relative', gap: 4
+                      }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: isSelected ? 'white' : 'rgba(255,255,255,0.7)' }}>{d.format('D')}</span>
+                      <div style={{ 
+                        width: 6, height: 6, borderRadius: '50%', background: dotColor,
+                        boxShadow: dotColor !== 'transparent' ? `0 0 8px ${dotColor}` : 'none'
+                      }}></div>
+                      {isSelected && <div style={{ position: 'absolute', top: -4, right: -4, width: 14, height: 14, background: 'var(--color-primary)', borderRadius: '50%', border: '2px solid var(--color-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, color: 'black' }}>✓</div>}
+                    </button>
+                  );
+                })}
               </div>
-              <div><label className="label">Date *</label>
-                <input type="date" className="input" value={form.appointmentDate} min={todayISO()} onChange={e => setForm(f => ({ ...f, appointmentDate: e.target.value }))} />
+              <div className="flex gap-4 mt-3 px-1">
+                <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#22c55e]"></div><span className="text-[10px] text-white/40 uppercase font-bold tracking-wider">Available</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#ef4444]"></div><span className="text-[10px] text-white/40 uppercase font-bold tracking-wider">Full / Unavailable</span></div>
               </div>
             </div>
 
-            {availableSessions.length > 0 && (
+            {selDoctor?.vacation?.enabled && (() => {
+              const bDate = moment(form.appointmentDate);
+              const isIndefinite = selDoctor.vacation.untilFurtherNotice;
+              const inRange = selDoctor.vacation.startDate && selDoctor.vacation.endDate && 
+                              bDate.isSameOrAfter(moment(selDoctor.vacation.startDate), 'day') && 
+                              bDate.isSameOrBefore(moment(selDoctor.vacation.endDate), 'day');
+              
+              if (isIndefinite || inRange) {
+                return (
+                  <div className="rounded-xl p-4 mb-3 border border-red-500/30 text-center" style={{ background: 'rgba(239,68,68,0.1)' }}>
+                    <p className="text-xl mb-1">🏖️</p>
+                    <p className="text-sm font-bold text-white">Dr. {selDoctor.name.replace('Dr. ','')} is on Vacation</p>
+                    <p className="text-xs text-red-400 mt-1">{selDoctor.vacation.note || 'No bookings allowed.'}</p>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
+            {availableSessions.length > 0 && !(() => {
+              const bDate = moment(form.appointmentDate);
+              const isIndefinite = selDoctor?.vacation?.untilFurtherNotice;
+              const inRange = selDoctor?.vacation?.startDate && selDoctor?.vacation?.endDate && 
+                              bDate.isSameOrAfter(moment(selDoctor.vacation.startDate), 'day') && 
+                              bDate.isSameOrBefore(moment(selDoctor.vacation.endDate), 'day');
+              return selDoctor?.vacation?.enabled && (isIndefinite || inRange);
+            })() && (
               <div className="mb-3">
                 <label className="label">Available Sessions *</label>
                 <div className="grid grid-cols-3 gap-2">

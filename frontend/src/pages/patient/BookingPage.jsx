@@ -9,6 +9,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api, { fUrl } from '../../utils/api';
 import toast from 'react-hot-toast';
+import moment from 'moment';
 import { todayISO, fMoney, DAYS } from '../../utils/helpers';
 import ChevFooter from '../../components/ChevFooter.jsx';
 
@@ -74,6 +75,8 @@ export default function BookingPage() {
   const [searchParams] = useSearchParams();
   const slugFromUrl = searchParams.get('hospital');
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selCategory, setSelCategory] = useState('');
   const [hospitals, setHospitals]     = useState([]);
   const [selHospital, setSelHospital] = useState(null);
   const [doctors, setDoctors]         = useState([]);
@@ -122,22 +125,88 @@ export default function BookingPage() {
     api.get('/doctors?hospitalId=' + selHospital._id)
       .then(({ data }) => setDoctors(data.doctors || []))
       .catch(() => {});
-  }, [selHospital]);
+  }, [selHospital]);  const categories = [...new Set(doctors.map(d => d.specialization))].sort();
 
-  // Filter sessions for selected date
+  const filteredHospitals = hospitals.filter(h => 
+    h.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    (h.city && h.city.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  const filteredDoctors = doctors.filter(d => {
+    const matchesSearch = d.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                         d.specialization.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         (!selHospital && d.hospitalId?.name?.toLowerCase().includes(searchQuery.toLowerCase()));
+    const matchesCat = selCategory ? d.specialization === selCategory : true;
+    
+    // Check vacation status
+    const onVacation = d.vacation?.enabled && (
+      d.vacation.untilFurtherNotice || 
+      (d.vacation.startDate && d.vacation.endDate && 
+       new Date() >= new Date(d.vacation.startDate) && 
+       new Date() <= new Date(d.vacation.endDate))
+    );
+    
+    return matchesSearch && matchesCat && !onVacation;
+  });
+
+  const [calendarCounts, setCalendarCounts] = useState([]);
+
+  // Load all doctors if no hospital selected (for global search)
   useEffect(() => {
-    if (!selDoctor || !date) return;
-    const dayOfWeek = new Date(date).getDay();
+    if (step === 1 && !selHospital) {
+      api.get('/doctors').then(({ data }) => setDoctors(data.doctors || []));
+    }
+  }, [step, selHospital]);
+
+  // Load calendar counts and available sessions
+  useEffect(() => {
+    if (!selDoctor?._id) return;
+    
+    // Fetch counts
+    api.get(`/doctors/${selDoctor._id}/calendar-counts`)
+      .then(({ data }) => setCalendarCounts(data.counts || []))
+      .catch(() => {});
+
+    // Filter sessions for current date
+    const dayOfWeek = moment(date).day();
     const sessions = (selDoctor.sessions || []).filter(s => s.dayOfWeek === dayOfWeek && s.isActive);
     setAvailableSessions(sessions);
     setSelSession(null);
   }, [selDoctor, date]);
 
+  // Calendar logic for availability
+  const getDayStatus = (d) => {
+    const dStr = d.format('YYYY-MM-DD');
+    
+    // 1. Vacation Check
+    if (selDoctor?.vacation?.enabled) {
+      const isIndefinite = selDoctor.vacation.untilFurtherNotice;
+      const inRange = selDoctor.vacation.startDate && selDoctor.vacation.endDate && 
+                      d.isSameOrAfter(moment(selDoctor.vacation.startDate), 'day') && 
+                      d.isSameOrBefore(moment(selDoctor.vacation.endDate), 'day');
+      if (isIndefinite || inRange) return 'vacation';
+    }
+
+    // 2. Check if doctor comes on this day
+    const dayOfWeek = d.day();
+    const daySessions = (selDoctor?.sessions || []).filter(s => s.dayOfWeek === dayOfWeek && s.isActive);
+    if (daySessions.length === 0) return 'off';
+
+    // 3. Check if all sessions are full
+    const dayCounts = calendarCounts.filter(c => c._id.date === dStr);
+    const allFull = daySessions.every(s => {
+      const countObj = dayCounts.find(c => c._id.sessionId === (s._id || `${s.sessionName}-${s.startTime}`));
+      return (countObj?.count || 0) >= s.maxPatients;
+    });
+
+    return allFull ? 'full' : 'available';
+  };
+
   const book = async () => {
-    if (!form.name || !form.phone) { toast.error('Name and phone are required'); return; }
+    if (!form.name || !form.phone) return toast.error('Please enter name and phone');
     setLoading(true);
     try {
-      const { data } = await api.post('/appointments/book', {
+      const payload = {
         doctorId: selDoctor._id,
         hospitalId: selHospital._id,
         appointmentDate: date,
@@ -145,55 +214,17 @@ export default function BookingPage() {
         sessionLabel: selSession?.label || selSession?.sessionName,
         name: form.name,
         phone: form.phone,
-        reason: form.reason,
-      });
+        reason: form.reason
+      };
+      const { data } = await api.post('/appointments/book', payload);
       setBooking(data);
-      toast.success('Booking confirmed!');
+      toast.success('Appointment booked successfully!');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Booking failed');
     } finally {
       setLoading(false);
     }
   };
-
-  // ── BOOKING SUCCESS ──────────────────────────────────────────────
-  if (booking) {
-    return (
-      <div style={{ minHeight: '100vh', background: 'var(--color-bg)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: 'DM Sans,sans-serif' }}>
-        <div style={{ maxWidth: 440, width: '100%', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 20, padding: '36px 32px', textAlign: 'center', boxShadow: '0 24px 64px rgba(0,0,0,0.5)' }}>
-          <div style={{ fontSize: 56, marginBottom: 16 }}>✅</div>
-          <h2 style={{ color: 'white', fontSize: 22, fontFamily: 'Sora,sans-serif', fontWeight: 700, marginBottom: 8 }}>Booking Confirmed!</h2>
-          <p style={{ color: 'rgba(255,255,255,0.5)', marginBottom: 24, fontSize: 14 }}>Your appointment has been booked successfully.</p>
-
-          <div style={{ background: 'rgba(var(--color-primary-rgb),0.08)', border: '1px solid rgba(var(--color-primary-rgb),0.25)', borderRadius: 14, padding: '20px', marginBottom: 20, textAlign: 'left' }}>
-            {[
-              ['Queue Number', `#${booking.queueNumber}`, true],
-              ['Hospital', selHospital?.name],
-              ['Doctor', selDoctor?.name],
-              ['Session', booking.appointment?.sessionLabel || 'General'],
-              ['Date', new Date(date).toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})],
-              ['Patient', form.name],
-            ].map(([l, v, highlight]) => (
-              <div key={l} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, paddingBottom: 10, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13 }}>{l}</span>
-                <span style={{ color: highlight ? 'var(--color-primary)' : 'white', fontWeight: highlight ? 800 : 500, fontSize: highlight ? 20 : 14 }}>{v}</span>
-              </div>
-            ))}
-          </div>
-
-          <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginBottom: 20 }}>
-            Please arrive 10 minutes before your appointment. Show this screen to reception.
-          </p>
-
-          <button onClick={() => { setBooking(null); setStep(0); setForm({ name:'', phone:'', reason:'' }); setSelDoctor(null); }}
-            style={{ background: 'linear-gradient(135deg, var(--color-primary), #00a8d4)', color: '#02040a', border: 'none', borderRadius: 12, padding: '12px 28px', fontFamily: 'Sora,sans-serif', fontWeight: 700, fontSize: 15, cursor: 'pointer', width: '100%' }}>
-            Book Another Appointment
-          </button>
-        </div>
-        <ChevFooter minimal />
-      </div>
-    );
-  }
 
   // ── MAIN BOOKING FLOW ────────────────────────────────────────────
   return (
@@ -222,20 +253,55 @@ export default function BookingPage() {
       {/* Main content */}
       <div className="flex-1 flex flex-col items-center px-4 py-6 md:py-10">
         <div className="w-full max-w-[600px]">
+          
+          {booking ? (
+            <div className="text-center py-10 animate-in fade-in zoom-in duration-500">
+              <div className="w-24 h-24 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-6 border-2 border-primary/30">
+                <span className="text-5xl">✅</span>
+              </div>
+              <h2 style={{ color: 'white', fontSize: 28, fontFamily: 'Sora,sans-serif', fontWeight: 800, marginBottom: 8 }}>Booking Confirmed!</h2>
+              <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 16, marginBottom: 40 }}>Your appointment has been successfully scheduled.</p>
+              
+              <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24, padding: '32px 20px', marginBottom: 40 }}>
+                <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Your Queue Number</p>
+                <h1 style={{ color: 'var(--color-primary)', fontSize: 72, fontFamily: 'Sora,sans-serif', fontWeight: 900, lineHeight: 1, marginBottom: 12 }}>{booking.queueNumber}</h1>
+                <p style={{ color: 'white', fontSize: 14, fontWeight: 600 }}>Estimated Wait: ~{booking.estimatedWaitMinutes} mins</p>
+              </div>
 
-          {/* Step bar */}
-          <StepBar step={step} />
+              <div className="space-y-3">
+                <button onClick={() => window.location.reload()}
+                  style={{ width: '100%', background: 'linear-gradient(135deg, var(--color-primary), #00a8d4)', color: '#02040a', border: 'none', borderRadius: 16, padding: '16px', fontFamily: 'Sora,sans-serif', fontWeight: 700, fontSize: 16, cursor: 'pointer' }}>
+                  Make Another Booking
+                </button>
+                <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>A confirmation message has been sent to your phone.</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Step bar */}
+              <StepBar step={step} />
 
           {/* ── STEP 0: Select Hospital ── */}
           {step === 0 && (
             <div>
-              <h2 style={{ color: 'white', fontSize: 20, fontFamily: 'Sora,sans-serif', fontWeight: 700, marginBottom: 6 }}>Select Hospital</h2>
-              <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, marginBottom: 20 }}>Choose where you'd like to book your appointment</p>
+              <div className="flex items-center justify-between mb-2">
+                <h2 style={{ color: 'white', fontSize: 20, fontFamily: 'Sora,sans-serif', fontWeight: 700 }}>Select Hospital</h2>
+                <button onClick={() => { setSelHospital(null); setStep(1); }} className="text-xs text-primary font-bold">Search All Doctors instead</button>
+              </div>
+              <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, marginBottom: 16 }}>Choose where you'd like to book your appointment</p>
+              
+              <div className="relative mb-4">
+                <input type="text" placeholder="Search hospital by name or city..." 
+                  className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white text-sm outline-none focus:border-primary transition-all"
+                  value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 opacity-30">🔍</span>
+              </div>
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {hospitals.length === 0 && (
                   <p style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: '40px 0' }}>Loading hospitals…</p>
                 )}
-                {hospitals.map(h => (
+                {filteredHospitals.map(h => (
                   <SelectCard key={h._id} selected={selHospital?._id === h._id} onClick={() => setSelHospital(h)}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                       {h.logo ? (
@@ -254,7 +320,7 @@ export default function BookingPage() {
                 ))}
               </div>
               <div style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end' }}>
-                <button disabled={!selHospital} onClick={() => setStep(1)}
+                <button disabled={!selHospital} onClick={() => { setStep(1); setSearchQuery(''); }}
                   style={{ background: selHospital ? 'linear-gradient(135deg, var(--color-primary), #00a8d4)' : 'rgba(255,255,255,0.06)', color: selHospital ? '#02040a' : 'rgba(255,255,255,0.3)', border: 'none', borderRadius: 12, padding: '12px 28px', fontFamily: 'Sora,sans-serif', fontWeight: 700, fontSize: 15, cursor: selHospital ? 'pointer' : 'not-allowed', transition: 'all 0.2s' }}>
                   Next: Choose Doctor →
                 </button>
@@ -265,14 +331,41 @@ export default function BookingPage() {
           {/* ── STEP 1: Choose Doctor ── */}
           {step === 1 && (
             <div>
-              <h2 style={{ color: 'white', fontSize: 20, fontFamily: 'Sora,sans-serif', fontWeight: 700, marginBottom: 6 }}>Choose Doctor</h2>
-              <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, marginBottom: 20 }}>Select your preferred doctor at {selHospital?.name}</p>
+              <h2 style={{ color: 'white', fontSize: 20, fontFamily: 'Sora,sans-serif', fontWeight: 700, marginBottom: 2 }}>Choose Doctor</h2>
+              <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, marginBottom: 16 }}>
+                {selHospital ? `Available doctors at ${selHospital.name}` : 'Search across all hospitals'}
+              </p>
+
+              {/* Search & Filters */}
+              <div className="space-y-3 mb-6">
+                <div className="relative">
+                  <input type="text" placeholder="Search by doctor name or specialization..." 
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white text-sm outline-none focus:border-primary transition-all"
+                    value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 opacity-30">🔍</span>
+                </div>
+                <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                  <button onClick={() => setSelCategory('')} 
+                    className={`px-3 py-1.5 rounded-full text-[10px] font-bold whitespace-nowrap transition-all border ${!selCategory ? 'bg-primary border-primary text-black' : 'bg-white/5 border-white/10 text-white/40 hover:text-white'}`}
+                    style={{ background: !selCategory ? 'var(--color-primary)' : 'transparent' }}>
+                    ALL CATEGORIES
+                  </button>
+                  {categories.map(cat => (
+                    <button key={cat} onClick={() => setSelCategory(cat)}
+                      className={`px-3 py-1.5 rounded-full text-[10px] font-bold whitespace-nowrap transition-all border ${selCategory === cat ? 'bg-primary border-primary text-black' : 'bg-white/5 border-white/10 text-white/40 hover:text-white'}`}
+                      style={{ background: selCategory === cat ? 'var(--color-primary)' : 'transparent' }}>
+                      {cat.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-                {doctors.length === 0 && (
-                  <p style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: '40px 0' }}>No doctors available today</p>
+                {filteredDoctors.length === 0 && (
+                  <p style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: '40px 0' }}>No doctors found matching your search</p>
                 )}
-                {doctors.map(d => (
-                  <SelectCard key={d._id} selected={selDoctor?._id === d._id} onClick={() => setSelDoctor(d)}>
+                {filteredDoctors.map(d => (
+                  <SelectCard key={d._id} selected={selDoctor?._id === d._id} onClick={() => { setSelDoctor(d); if(!selHospital) setSelHospital(d.hospitalId); }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                       <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 900, color: '#02040a', flexShrink: 0 }}>
                         {d.name.replace('Dr. ','').charAt(0)}
@@ -280,7 +373,7 @@ export default function BookingPage() {
                       <div style={{ flex: 1 }}>
                         <p style={{ color: 'white', fontWeight: 600, fontSize: 15 }}>{d.name}</p>
                         <p style={{ color: 'var(--color-primary)', fontSize: 13 }}>{d.specialization}</p>
-                        {d.qualifications?.length > 0 && <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>{d.qualifications.join(', ')}</p>}
+                        <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11 }}>{!selHospital && d.hospitalId?.name ? `🏥 ${d.hospitalId.name}` : d.qualifications?.join(', ')}</p>
                       </div>
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
                         <p style={{ color: 'white', fontWeight: 700, fontSize: 16 }}>{sym} {(d.fees?.totalFee || (d.fees?.doctorFee||0) + (d.fees?.hospitalCharge||0)).toLocaleString()}</p>
@@ -295,7 +388,7 @@ export default function BookingPage() {
                   style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '12px 22px', fontFamily: 'Sora,sans-serif', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
                   ← Back
                 </button>
-                <button disabled={!selDoctor} onClick={() => setStep(2)}
+                <button disabled={!selDoctor} onClick={() => { setStep(2); setSearchQuery(''); }}
                   style={{ background: selDoctor ? 'linear-gradient(135deg, var(--color-primary), #00a8d4)' : 'rgba(255,255,255,0.06)', color: selDoctor ? '#02040a' : 'rgba(255,255,255,0.3)', border: 'none', borderRadius: 12, padding: '12px 28px', fontFamily: 'Sora,sans-serif', fontWeight: 700, fontSize: 15, cursor: selDoctor ? 'pointer' : 'not-allowed' }}>
                   Next: Pick Session →
                 </button>
@@ -310,33 +403,108 @@ export default function BookingPage() {
               <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, marginBottom: 20 }}>Choose a date and available session for {selDoctor?.name}</p>
 
               <div style={{ marginBottom: 24 }}>
-                <label className="label">Appointment Date</label>
-                <input type="date" className="input" value={date} min={todayISO()} onChange={e => setDate(e.target.value)} />
+                <label className="label">Select Date</label>
+                <div className="grid grid-cols-7 gap-1 mt-2">
+                  {['S','M','T','W','T','F','S'].map((d,i) => (
+                    <div key={i} className="text-[10px] font-bold text-center opacity-30 py-1">{d}</div>
+                  ))}
+                  {Array.from({ length: 28 }).map((_, i) => {
+                    const d = moment().add(i, 'days');
+                    const dStr = d.format('YYYY-MM-DD');
+                    const isSelected = date === dStr;
+                    const status = getDayStatus(d);
+                    
+                    let bgColor = 'rgba(255,255,255,0.03)';
+                    let borderColor = 'rgba(255,255,255,0.05)';
+                    let dotColor = 'transparent';
+
+                    if (status === 'available') {
+                      dotColor = '#22c55e'; // Green
+                      bgColor = 'rgba(34,197,94,0.05)';
+                      if (isSelected) { bgColor = 'rgba(34,197,94,0.2)'; borderColor = '#22c55e'; }
+                    } else if (status === 'full' || status === 'off' || status === 'vacation') {
+                      dotColor = '#ef4444'; // Red
+                      bgColor = 'rgba(239,68,68,0.05)';
+                      if (isSelected) { bgColor = 'rgba(239,68,68,0.2)'; borderColor = '#ef4444'; }
+                    }
+
+                    return (
+                      <button key={dStr} onClick={() => setDate(dStr)}
+                        style={{
+                          aspectRatio: '1/1', borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                          background: bgColor, border: `1.5px solid ${borderColor}`, cursor: 'pointer', transition: 'all 0.2s', position: 'relative',
+                          gap: 4
+                        }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: isSelected ? 'white' : 'rgba(255,255,255,0.7)' }}>{d.format('D')}</span>
+                        <div style={{ 
+                          width: 6, height: 6, borderRadius: '50%', background: dotColor,
+                          boxShadow: dotColor !== 'transparent' ? `0 0 8px ${dotColor}` : 'none'
+                        }}></div>
+                        {isSelected && <div style={{ position: 'absolute', top: -4, right: -4, width: 14, height: 14, background: 'var(--color-primary)', borderRadius: '50%', border: '2px solid var(--color-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, color: 'black' }}>✓</div>}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex gap-4 mt-3 px-1">
+                  <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#22c55e]"></div><span className="text-[10px] text-white/40 uppercase font-bold tracking-wider">Available</span></div>
+                  <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#ef4444]"></div><span className="text-[10px] text-white/40 uppercase font-bold tracking-wider">Full / Unavailable</span></div>
+                </div>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
                 <label className="label">Available Sessions</label>
-                {availableSessions.length === 0 ? (
-                  <div className="card" style={{ textAlign: 'center', padding: '30px 20px', borderStyle: 'dashed' }}>
-                    <span className="text-2xl mb-2 block">📅</span>
-                    <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No sessions scheduled for this day.</p>
-                    <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.2)' }}>Try selecting another date.</p>
-                  </div>
-                ) : (
-                  availableSessions.map((s, i) => (
-                    <SelectCard key={s._id || i} selected={(selSession?._id || `${selSession?.sessionName}-${selSession?.startTime}`) === (s._id || `${s.sessionName}-${s.startTime}`)} onClick={() => setSelSession(s)}>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p style={{ color: 'white', fontWeight: 600, fontSize: 15 }}>{s.label || s.sessionName || 'Regular Session'}</p>
-                          <p style={{ color: 'var(--color-primary)', fontSize: 13 }}>{s.startTime} - {s.endTime}</p>
+                {selDoctor?.vacation?.enabled && (
+                  (() => {
+                    const bDate = moment(date);
+                    const isIndefinite = selDoctor.vacation.untilFurtherNotice;
+                    const inRange = selDoctor.vacation.startDate && selDoctor.vacation.endDate && 
+                                    bDate.isSameOrAfter(moment(selDoctor.vacation.startDate), 'day') && 
+                                    bDate.isSameOrBefore(moment(selDoctor.vacation.endDate), 'day');
+                    
+                    if (isIndefinite || inRange) {
+                      return (
+                        <div className="card" style={{ background: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.3)', padding: '20px', textAlign: 'center' }}>
+                          <span className="text-3xl mb-2 block">🏖️</span>
+                          <h4 className="font-bold text-white mb-1">Dr. {selDoctor.name.replace('Dr. ','')} is on Vacation</h4>
+                          <p className="text-xs text-red-400">{selDoctor.vacation.note || 'No appointments available for this period.'}</p>
+                          <p className="text-[10px] text-white/30 mt-4">Please try selecting another date.</p>
                         </div>
-                        <div className="text-right">
-                          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>Max: {s.maxPatients} patients</p>
-                          <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11 }}>{s.slotDuration} min / patient</p>
+                      );
+                    }
+                    return null;
+                  })()
+                )}
+
+                {(!selDoctor?.vacation?.enabled || !(() => {
+                    const bDate = moment(date);
+                    const isIndefinite = selDoctor.vacation.untilFurtherNotice;
+                    const inRange = selDoctor.vacation.startDate && selDoctor.vacation.endDate && 
+                                    bDate.isSameOrAfter(moment(selDoctor.vacation.startDate), 'day') && 
+                                    bDate.isSameOrBefore(moment(selDoctor.vacation.endDate), 'day');
+                    return isIndefinite || inRange;
+                })()) && (
+                  availableSessions.length === 0 ? (
+                    <div className="card" style={{ textAlign: 'center', padding: '30px 20px', borderStyle: 'dashed' }}>
+                      <span className="text-2xl mb-2 block">📅</span>
+                      <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No sessions scheduled for this day.</p>
+                      <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.2)' }}>Try selecting another date.</p>
+                    </div>
+                  ) : (
+                    availableSessions.map((s, i) => (
+                      <SelectCard key={s._id || i} selected={(selSession?._id || `${selSession?.sessionName}-${selSession?.startTime}`) === (s._id || `${s.sessionName}-${s.startTime}`)} onClick={() => setSelSession(s)}>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p style={{ color: 'white', fontWeight: 600, fontSize: 15 }}>{s.label || s.sessionName || 'Regular Session'}</p>
+                            <p style={{ color: 'var(--color-primary)', fontSize: 13 }}>{s.startTime} - {s.endTime}</p>
+                          </div>
+                          <div className="text-right">
+                            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>Max: {s.maxPatients} patients</p>
+                            <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11 }}>{s.slotDuration} min / patient</p>
+                          </div>
                         </div>
-                      </div>
-                    </SelectCard>
-                  ))
+                      </SelectCard>
+                    ))
+                  )
                 )}
               </div>
 
@@ -406,8 +574,10 @@ export default function BookingPage() {
               </div>
             </div>
           )}
-        </div>
-      </div>
+        </>
+      )}
+    </div>
+  </div>
 
       <ChevFooter />
     </div>

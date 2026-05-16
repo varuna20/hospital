@@ -118,27 +118,128 @@ export default function DoctorDashboard() {
   const dayOfWeek = new Date().getDay();
   const todaySessions = (user?.doctorProfile?.sessions || []).filter(s => s.dayOfWeek === dayOfWeek && s.isActive);
 
+  const [showVacationModal, setShowVacationModal] = useState(false);
+  const [vacationForm, setVacationForm] = useState(user?.doctorProfile?.vacation || {
+    enabled: false, startDate: '', endDate: '', untilFurtherNotice: false, note: ''
+  });
+
+  useEffect(() => {
+    if (showVacationModal && user?.doctorProfile?.vacation) {
+      setVacationForm(user.doctorProfile.vacation);
+    }
+  }, [showVacationModal, user]);
+
+  const saveVacation = async () => {
+    try {
+      const { data } = await api.put(`/doctors/${doctorId}/vacation`, vacationForm);
+      toast.success('Vacation status updated');
+      setShowVacationModal(false);
+      window.location.reload(); 
+    } catch (e) { toast.error('Failed to update vacation'); }
+  };
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="page-title">{greeting}, {(user?.name||'').replace('Dr. ','')}</h1>
-          <p className="text-sm" style={{ color:'var(--color-text-muted)' }}>
-            {new Date().toLocaleDateString('en-US',{weekday:'long',day:'numeric',month:'long'})} · {hospital?.name}
-          </p>
-        </div>
-        {todaySessions.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold" style={{ color:'var(--color-text-muted)' }}>VIEW SESSION:</span>
-            <select className="input w-auto h-10 py-1 text-xs" 
-              style={{ background:'rgba(var(--color-primary-rgb),0.1)', borderColor:'rgba(var(--color-primary-rgb),0.3)', color:'var(--color-primary)' }}
-              value={selSession} onChange={e => setSelSession(e.target.value)}>
-              <option value="">All Today's Patients</option>
-              {todaySessions.map(s => <option key={s._id} value={s._id}>{s.label || s.sessionName} ({s.startTime})</option>)}
-            </select>
+          <div className="flex items-center gap-3">
+            <p className="text-sm" style={{ color:'var(--color-text-muted)' }}>
+              {new Date().toLocaleDateString('en-US',{weekday:'long',day:'numeric',month:'long'})} · {hospital?.name}
+            </p>
+            {user?.doctorProfile?.vacation?.enabled && (
+              <span className="px-2 py-0.5 rounded bg-red-500/20 text-red-500 text-[10px] font-bold border border-red-500/30">
+                🌴 ON VACATION
+              </span>
+            )}
           </div>
-        )}
+        </div>
+        <div className="flex items-center gap-3">
+          <button onClick={() => setShowVacationModal(true)} 
+            className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${user?.doctorProfile?.vacation?.enabled ? 'bg-red-500/10 border-red-500/30 text-red-500' : 'bg-white/5 border-white/10 text-white/60 hover:text-white'}`}>
+            {user?.doctorProfile?.vacation?.enabled ? '🌴 Manage Vacation' : '🏖️ Set Vacation Mode'}
+          </button>
+          <Link to="/doctor/calendar" className="btn-ghost text-xs">📅 Session Calendar</Link>
+          {todaySessions.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold" style={{ color:'var(--color-text-muted)' }}>VIEW SESSION:</span>
+              <select className="input w-auto h-10 py-1 text-xs" 
+                style={{ background:'rgba(var(--color-primary-rgb),0.1)', borderColor:'rgba(var(--color-primary-rgb),0.3)', color:'var(--color-primary)' }}
+                value={selSession} onChange={e => setSelSession(e.target.value)}>
+                <option value="">All Today's Patients</option>
+                {todaySessions.map(s => <option key={s._id} value={s._id}>{s.label || s.sessionName} ({s.startTime})</option>)}
+              </select>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Vacation Modal */}
+      {showVacationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="card w-full max-w-md border border-white/10 shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="section-title text-lg mb-0">Vacation Settings</h2>
+              <button onClick={() => setShowVacationModal(false)} className="text-white/40 hover:text-white">✕</button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10">
+                <div>
+                  <p className="text-sm font-bold text-white">Enable Vacation Mode</p>
+                  <p className="text-[10px] text-muted">Suspending all new bookings</p>
+                </div>
+                <input type="checkbox" className="w-5 h-5 accent-primary" 
+                  checked={vacationForm.enabled} 
+                  onChange={e => setVacationForm({...vacationForm, enabled: e.target.checked})} />
+              </div>
+
+              {vacationForm.enabled && (
+                <>
+                  <div className="flex items-center gap-3 p-4 rounded-xl bg-white/5 border border-white/10">
+                    <input type="checkbox" className="w-4 h-4 accent-primary" 
+                      checked={vacationForm.untilFurtherNotice}
+                      onChange={e => setVacationForm({...vacationForm, untilFurtherNotice: e.target.checked})} />
+                    <div>
+                      <p className="text-xs font-bold text-white">Until Further Notice</p>
+                      <p className="text-[10px] text-muted">No specific return date</p>
+                    </div>
+                  </div>
+
+                  {!vacationForm.untilFurtherNotice && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="label text-[10px]">Start Date</label>
+                        <input type="date" className="input text-sm" 
+                          value={vacationForm.startDate?.split('T')[0] || ''}
+                          onChange={e => setVacationForm({...vacationForm, startDate: e.target.value})} />
+                      </div>
+                      <div>
+                        <label className="label text-[10px]">End Date</label>
+                        <input type="date" className="input text-sm" 
+                          value={vacationForm.endDate?.split('T')[0] || ''}
+                          onChange={e => setVacationForm({...vacationForm, endDate: e.target.value})} />
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="label text-[10px]">Public Note (optional)</label>
+                    <input className="input text-sm" placeholder="e.g. Attending a conference" 
+                      value={vacationForm.note || ''}
+                      onChange={e => setVacationForm({...vacationForm, note: e.target.value})} />
+                  </div>
+                </>
+              )}
+
+              <div className="pt-4 flex gap-3">
+                <button onClick={() => setShowVacationModal(false)} className="btn-ghost flex-1">Cancel</button>
+                <button onClick={saveVacation} className="btn-primary flex-1">Save Settings</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Refund requests — urgent */}
       {refunds.length > 0 && (

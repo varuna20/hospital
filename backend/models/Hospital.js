@@ -61,7 +61,15 @@ const hospitalSchema = new mongoose.Schema({
     // Which events trigger WhatsApp messages
     notifyOnBook:   { type: Boolean, default: true },
     notifyOnTurn:   { type: Boolean, default: true },
-    notifyDoctor:   { type: Boolean, default: true }   // Session summary to doctor
+    notifyDoctor:   { type: Boolean, default: true },  // Session summary to doctor
+    templates: {
+      booking: String,
+      arrival: String,
+      late:    String,
+      cancel:  String,
+      turn:    String,
+      reminder:String
+    }
   },
 
   // ── Payment / Charges ────────────────────────────────────
@@ -138,7 +146,9 @@ const hospitalSchema = new mongoose.Schema({
       arrival: String,   // Custom template for doctor arrival
       late:    String,   // Custom template for doctor late
       change:  String,   // Custom template for appointment change
-      cancel:  String    // Custom template for session cancellation
+      cancel:  String,   // Custom template for session cancellation
+      turn:    String,   // Custom template for turn alert
+      reminder:String    // Custom template for booking reminder
     }
   },
 

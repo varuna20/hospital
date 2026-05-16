@@ -453,4 +453,59 @@ router.post('/send-manual-sms', protect, authorize('staff', 'admin', 'superadmin
   }
 });
 
+// ── Hospital: Detailed Revenue Report for Charts ─────────────────────
+router.get('/:id/revenue-report', protect, authorize('admin', 'superadmin'), async (req, res) => {
+  try {
+    const hospitalId = require('mongoose').Types.ObjectId.createFromHexString(req.params.id);
+    const Appointment = require('../models/Appointment');
+    const moment = require('moment');
+
+    // 1. Weekly (Last 7 days)
+    const sevenDaysAgo = moment().subtract(6, 'days').startOf('day').toDate();
+    const weeklyAgg = await Appointment.aggregate([
+      { $match: { hospitalId, appointmentDate: { $gte: sevenDaysAgo }, paymentStatus: 'paid' } },
+      { $group: { 
+        _id: { $dateToString: { format: "%Y-%m-%d", date: "$appointmentDate" } }, 
+        revenue: { $sum: '$fees.hospitalCharge' } 
+      } },
+      { $sort: { "_id": 1 } }
+    ]);
+
+    // 2. Monthly (Last 6 months)
+    const sixMonthsAgo = moment().subtract(5, 'months').startOf('month').toDate();
+    const monthlyAgg = await Appointment.aggregate([
+      { $match: { hospitalId, appointmentDate: { $gte: sixMonthsAgo }, paymentStatus: 'paid' } },
+      { $group: { 
+        _id: { $dateToString: { format: "%Y-%m", date: "$appointmentDate" } }, 
+        revenue: { $sum: '$fees.hospitalCharge' } 
+      } },
+      { $sort: { "_id": 1 } }
+    ]);
+
+    // 3. Revenue by Doctor (Top 5)
+    const doctorAgg = await Appointment.aggregate([
+      { $match: { hospitalId, paymentStatus: 'paid', appointmentDate: { $gte: moment().subtract(30, 'days').toDate() } } },
+      { $lookup: { from: 'doctors', localField: 'doctor', foreignField: '_id', as: 'docInfo' } },
+      { $unwind: '$docInfo' },
+      { $group: { _id: '$docInfo.name', value: { $sum: '$fees.hospitalCharge' } } },
+      { $sort: { value: -1 } },
+      { $limit: 5 }
+    ]);
+
+    // 4. Revenue by Payment Method
+    const paymentAgg = await Appointment.aggregate([
+      { $match: { hospitalId, paymentStatus: 'paid', appointmentDate: { $gte: moment().subtract(30, 'days').toDate() } } },
+      { $group: { _id: '$paymentMethod', value: { $sum: '$fees.hospitalCharge' } } }
+    ]);
+
+    res.json({
+      success: true,
+      weekly: weeklyAgg.map(i => ({ name: moment(i._id).format('ddd'), revenue: i.revenue })),
+      monthly: monthlyAgg.map(i => ({ name: moment(i._id).format('MMM'), revenue: i.revenue })),
+      byDoctor: doctorAgg.map(i => ({ name: i._id, value: i.value })),
+      byPayment: paymentAgg.map(i => ({ name: i._id, value: i.value }))
+    });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
 module.exports = router;

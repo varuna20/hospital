@@ -78,7 +78,19 @@ const doctorSchema = new mongoose.Schema({
     whatsappSummarysent: { type: Boolean, default: false }
   },
 
-  isActive: { type: Boolean, default: true }
+  isActive: { type: Boolean, default: true },
+  vacation: {
+    enabled: { type: Boolean, default: false },
+    startDate: Date,
+    endDate: Date,
+    untilFurtherNotice: { type: Boolean, default: false },
+    note: String
+  },
+  notificationSettings: {
+    notifyReschedule: { type: Boolean, default: true },
+    notifySessionSummary: { type: Boolean, default: true },
+    summaryLeadTimeMinutes: { type: Number, default: 60 } // 1 hour before
+  }
 
 }, { timestamps: true });
 

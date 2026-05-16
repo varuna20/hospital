@@ -158,7 +158,18 @@ export default function AdminSettings() {
     { id:'arrival', l:'Doctor Arrival', desc:'Sent when doctor session starts', vars:['{patientName}', '{doctorName}', '{arrivalTime}', '{queueNumber}', '{trackUrl}'] },
     { id:'late', l:'Doctor Late Alert', desc:'Notify if doctor is delayed', vars:['{patientName}', '{doctorName}', '{expectedTime}'] },
     { id:'change', l:'Appointment Update', desc:'Sent on booking changes', vars:['{patientName}', '{doctorName}', '{newDate}', '{newTime}'] },
-    { id:'cancel', l:'Session Cancellation', desc:'Sent if doctor is absent', vars:['{patientName}', '{doctorName}', '{date}'] }
+    { id:'cancel', l:'Session Cancellation', desc:'Sent if doctor is absent', vars:['{patientName}', '{doctorName}', '{date}'] },
+    { id:'turn',   l:'Turn Approaching', desc:'Sent when turn is near', vars:['{patientName}', '{queueNumber}', '{patientsAhead}'] },
+    { id:'reminder', l:'Booking Reminder', desc:'Sent before appointment', vars:['{patientName}', '{doctorName}', '{date}', '{time}'] }
+  ];
+
+  const WA_FIELDS = [
+    { id:'booking', l:'WhatsApp Booking', desc:'Sent on new booking', vars:['{patientName}', '{doctorName}', '{queueNumber}', '{date}', '{time}', '{fee}', '{address}'] },
+    { id:'turn',    l:'WhatsApp Turn Alert', desc:'X people ahead alert', vars:['{patientName}', '{queueNumber}', '{peopleAhead}'] },
+    { id:'arrival', l:'WhatsApp Doctor Arrival', desc:'Notify when session starts', vars:['{patientName}', '{doctorName}', '{room}'] },
+    { id:'late',    l:'WhatsApp Delay Alert', desc:'Notify if delayed', vars:['{patientName}', '{doctorName}', '{expectedTime}'] },
+    { id:'cancel',  l:'WhatsApp Cancellation', desc:'Sent if session cancelled', vars:['{patientName}', '{doctorName}', '{reason}'] },
+    { id:'reminder',l:'WhatsApp Reminder', desc:'Appointment reminder', vars:['{patientName}', '{doctorName}', '{date}'] }
   ];
 
   return (
@@ -247,6 +258,23 @@ export default function AdminSettings() {
                 <div className="flex-1"><label className="label">Test WhatsApp</label>
                   <input className="input" placeholder="+94771234567" value={testPhone} onChange={e=>setTestPhone(e.target.value)} /></div>
                 <button onClick={testWA} disabled={testing||!testPhone} className="btn-primary flex-shrink-0">{testing?'Sending…':'Send Test'}</button>
+              </div>
+
+              <div className="border-t pt-4 mt-2">
+                <h3 className="section-title text-sm mb-4">WhatsApp Templates</h3>
+                <div className="grid md:grid-cols-2 gap-4">
+                  {WA_FIELDS.map(f => (
+                    <div key={f.id} className="space-y-1.5">
+                      <label className="label font-bold text-[10px] uppercase tracking-wider">{f.l}</label>
+                      <textarea className="input text-xs" rows={4} value={s.whatsapp?.templates?.[f.id] || ''} onChange={e => upd(`whatsapp.templates.${f.id}`, e.target.value)} />
+                      <div className="flex flex-wrap gap-1">
+                        {f.vars.map(v => (
+                          <span key={v} className="text-[9px] px-1 rounded bg-white/5 text-white/40 border border-white/5">{v}</span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </>
           ) : (

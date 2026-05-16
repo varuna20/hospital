@@ -57,69 +57,54 @@ function getFromNumber(hospital) {
 /**
  * Core send function
  */
-async function sendWhatsApp(hospital, to, message) {
+async function sendWhatsApp(hospital, to, message, templateType, templateData) {
   const MessageLog = require('../models/MessageLog');
   const hospitalId = hospital?._id;
 
   if (!hospital?.whatsapp?.enabled) {
-    await MessageLog.create({
-      hospitalId,
-      type: 'whatsapp',
-      recipient: to,
-      message,
-      status: 'skipped',
-      error: 'WhatsApp disabled for this hospital'
-    }).catch(() => {});
-    return { sent: false, reason: 'WhatsApp disabled for this hospital' };
+    return { sent: false, reason: 'WhatsApp disabled' };
   }
   
-  if (!to) return { sent: false, reason: 'No phone number' };
+  let finalMessage = message;
+  
+  // Custom Template Logic
+  if (templateType && hospital?.whatsapp?.templates?.[templateType]) {
+    let custom = hospital.whatsapp.templates[templateType];
+    const keys = Object.keys(templateData || {});
+    keys.forEach(k => {
+      const reg = new RegExp(`\\{${k}\\}`, 'gi');
+      custom = custom.replace(reg, templateData[k]);
+    });
+    finalMessage = custom;
+  }
+
+  if (!to || !finalMessage) return { sent: false, reason: 'Missing to/message' };
 
   const client = getClient(hospital);
   if (!client) {
     await MessageLog.create({
-      hospitalId,
-      type: 'whatsapp',
-      recipient: to,
-      message,
-      status: 'failed',
-      error: 'Twilio not configured'
+      hospitalId, type: 'whatsapp', recipient: to, message: finalMessage, status: 'failed', error: 'Twilio not configured'
     }).catch(() => {});
     return { sent: false, reason: 'Twilio not configured' };
   }
 
   try {
     const result = await client.messages.create({
-      body: message,
+      body: finalMessage,
       from: getFromNumber(hospital),
       to:   formatWhatsApp(to)
     });
     
     await MessageLog.create({
-      hospitalId,
-      type: 'whatsapp',
-      recipient: to,
-      message,
-      status: 'sent',
-      provider: 'twilio',
+      hospitalId, type: 'whatsapp', recipient: to, message: finalMessage, status: 'sent', provider: 'twilio',
       providerResponse: { sid: result.sid, status: result.status }
     }).catch(() => {});
 
-    console.log(`✅ WhatsApp sent to ${to}: ${result.sid}`);
     return { sent: true, sid: result.sid };
   } catch (err) {
-    console.error(`❌ WhatsApp error to ${to}:`, err.message);
-    
     await MessageLog.create({
-      hospitalId,
-      type: 'whatsapp',
-      recipient: to,
-      message,
-      status: 'failed',
-      provider: 'twilio',
-      error: err.message
+      hospitalId, type: 'whatsapp', recipient: to, message: finalMessage, status: 'failed', provider: 'twilio', error: err.message
     }).catch(() => {});
-
     return { sent: false, reason: err.message };
   }
 }
@@ -130,89 +115,99 @@ async function sendWhatsApp(hospital, to, message) {
  * Send booking confirmation to patient
  */
 async function sendBookingConfirmation(hospital, patient, appointment, doctor) {
-  const msg =
-    `🏥 *${hospital.name}*\n\n` +
-    `✅ *Appointment Confirmed!*\n\n` +
-    `👤 Patient: ${patient.name}\n` +
-    `🩺 Doctor: ${doctor.name}\n` +
-    `🔬 ${doctor.specialization}\n` +
-    `📅 Date: ${new Date(appointment.appointmentDate).toLocaleDateString('en-GB')}\n` +
-    `🔢 Queue Number: *${appointment.queueNumber}*\n` +
-    `🏠 Room: ${doctor.room || 'See display screen'}\n\n` +
-    `💰 Total Fee: ${hospital.payment?.currencySymbol || 'Rs.'} ${appointment.fees?.totalAmount || 0}\n\n` +
-    `⏱ Please arrive early. Your queue number will be called.\n` +
-    `📍 ${hospital.address || ''}`;
+  const data = {
+    hospitalName: hospital.name,
+    patientName: patient.name,
+    doctorName: doctor.name,
+    specialization: doctor.specialization,
+    date: new Date(appointment.appointmentDate).toLocaleDateString('en-GB'),
+    queueNumber: appointment.queueNumber,
+    room: doctor.room || 'See display screen',
+    sym: hospital.payment?.currencySymbol || 'Rs.',
+    fee: appointment.fees?.totalAmount || 0,
+    address: hospital.address || ''
+  };
 
-  return sendWhatsApp(hospital, patient.phone, msg);
+  const defaultMsg =
+    `🏥 *${data.hospitalName}*\n\n` +
+    `✅ *Appointment Confirmed!*\n\n` +
+    `👤 Patient: ${data.patientName}\n` +
+    `🩺 Doctor: ${data.doctorName}\n` +
+    `🔬 ${data.specialization}\n` +
+    `📅 Date: ${data.date}\n` +
+    `🔢 Queue Number: *${data.queueNumber}*\n` +
+    `🏠 Room: ${data.room}\n\n` +
+    `💰 Total Fee: ${data.sym} ${data.fee}\n\n` +
+    `⏱ Please arrive early. Your queue number will be called.\n` +
+    `📍 ${data.address}`;
+
+  return sendWhatsApp(hospital, patient.phone, defaultMsg, 'booking', data);
 }
 
 /**
  * Notify patient their turn is approaching (X people ahead)
  */
 async function sendTurnAlert(hospital, patient, queueNumber, peopleAhead) {
-  const msg =
-    `🏥 *${hospital.name}*\n\n` +
+  const data = {
+    hospitalName: hospital.name,
+    patientName: patient?.name,
+    queueNumber,
+    peopleAhead
+  };
+
+  const defaultMsg =
+    `🏥 *${data.hospitalName}*\n\n` +
     `🔔 *Your Turn is Coming Soon!*\n\n` +
-    `🔢 Your Queue Number: *${queueNumber}*\n` +
-    `👥 People ahead of you: *${peopleAhead}*\n\n` +
+    `🔢 Your Queue Number: *${data.queueNumber}*\n` +
+    `👥 People ahead of you: *${data.peopleAhead}*\n\n` +
     `⚡ Please be ready — your turn will be called shortly!\n` +
     `📍 Please proceed to the waiting area.`;
 
-  return sendWhatsApp(hospital, patient.phone, msg);
+  return sendWhatsApp(hospital, patient.phone, defaultMsg, 'turn', data);
 }
 
 /**
  * Notify patient doctor has arrived
  */
 async function sendDoctorArrival(hospital, patient, doctor) {
-  const msg =
-    `🏥 *${hospital.name}*\n\n` +
+  const data = {
+    hospitalName: hospital.name,
+    patientName: patient?.name,
+    doctorName: doctor.name,
+    specialization: doctor.specialization,
+    room: doctor.room || 'Check display screen'
+  };
+
+  const defaultMsg =
+    `🏥 *${data.hospitalName}*\n\n` +
     `✅ *Doctor Has Arrived!*\n\n` +
-    `🩺 Dr. ${doctor.name} is now available.\n` +
-    `🔬 ${doctor.specialization}\n` +
-    `🏠 Room: ${doctor.room || 'Check display screen'}\n\n` +
+    `🩺 Dr. ${data.doctorName} is now available.\n` +
+    `🔬 ${data.specialization}\n` +
+    `🏠 Room: ${data.room}\n\n` +
     `⏰ The session will begin shortly. Please ensure you are at the clinic.`;
 
-  return sendWhatsApp(hospital, patient.phone, msg);
+  return sendWhatsApp(hospital, patient.phone, defaultMsg, 'arrival', data);
 }
 
 /**
  * Send session summary to doctor before they start
- * Shows total bookings, breakdown by status
  */
 async function sendDoctorSessionSummary(hospital, doctor, appointments) {
+  // Doctor summary is usually fixed/system level, but we use sendWhatsApp directly
   const total    = appointments.length;
-  const booked   = appointments.filter(a => a.status === 'booked').length;
   const arrived  = appointments.filter(a => a.status === 'arrived').length;
+  const booked   = appointments.filter(a => a.status === 'booked').length;
   const totalRev = appointments.reduce((s, a) => s + (a.fees?.doctorFee || 0), 0);
   const currency = hospital.payment?.currencySymbol || 'Rs.';
 
-  const today = new Date().toLocaleDateString('en-GB', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-  });
-
-  const patientList = appointments.slice(0, 10).map((a, i) =>
-    `  ${i + 1}. [${a.queueNumber}] ${a.patient?.name || 'Patient'}`
-  ).join('\n');
-
   const msg =
     `🏥 *${hospital.name}*\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━\n` +
-    `📋 *SESSION SUMMARY*\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `📋 *SESSION SUMMARY*\n\n` +
     `👨‍⚕️ Doctor: *${doctor.name}*\n` +
-    `🔬 ${doctor.specialization}\n` +
-    `📅 ${today}\n\n` +
-    `📊 *BOOKINGS TODAY*\n` +
-    `• Total: *${total}* patients\n` +
-    `• Checked In: ${arrived}\n` +
-    `• Yet to Arrive: ${booked}\n\n` +
-    `💰 *EXPECTED REVENUE*\n` +
-    `• Doctor Fee: ${currency} ${totalRev.toLocaleString()}\n\n` +
-    `👥 *PATIENT LIST (First 10)*\n` +
-    `${patientList || 'No patients yet'}\n\n` +
-    `🚀 Have a great session, Doctor!\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━`;
+    `📊 Total: *${total}* patients\n` +
+    `✅ Arrived: ${arrived} / Booked: ${booked}\n` +
+    `💰 Revenue: ${currency} ${totalRev.toLocaleString()}\n\n` +
+    `🚀 Have a great session!`;
 
   return sendWhatsApp(hospital, doctor.phone, msg);
 }
@@ -221,28 +216,44 @@ async function sendDoctorSessionSummary(hospital, doctor, appointments) {
  * Notify about delay
  */
 async function sendDelayAlert(hospital, patient, doctor, expectedTime, sessionLabel) {
-  const msg =
-    `🏥 *${hospital.name}*\n\n` +
-    `⏳ *Doctor Arriving Late*\n\n` +
-    `🩺 Dr. ${doctor.name} is delayed for the ${sessionLabel || 'session'}.\n` +
-    `⏰ Expected Time: *${expectedTime}*\n\n` +
-    `🙏 We apologize for the wait and appreciate your patience.`;
+  const data = {
+    hospitalName: hospital.name,
+    patientName: patient?.name,
+    doctorName: doctor.name,
+    expectedTime,
+    sessionLabel: sessionLabel || 'session'
+  };
 
-  return sendWhatsApp(hospital, patient.phone, msg);
+  const defaultMsg =
+    `🏥 *${data.hospitalName}*\n\n` +
+    `⏳ *Doctor Arriving Late*\n\n` +
+    `🩺 Dr. ${data.doctorName} is delayed for the ${data.sessionLabel}.\n` +
+    `⏰ Expected Time: *${data.expectedTime}*\n\n` +
+    `🙏 We appreciate your patience.`;
+
+  return sendWhatsApp(hospital, patient.phone, defaultMsg, 'late', data);
 }
 
 /**
  * Notify about cancellation
  */
 async function sendCancellationAlert(hospital, patient, doctor, reason, sessionLabel) {
-  const msg =
-    `🏥 *${hospital.name}*\n\n` +
-    `❌ *Session Cancelled*\n\n` +
-    `🩺 Dr. ${doctor.name}'s session (${sessionLabel || 'session'}) today has been cancelled.\n` +
-    `📝 Reason: ${reason || 'Unavoidable circumstances'}\n\n` +
-    `📞 Please contact our reception to reschedule your appointment.`;
+  const data = {
+    hospitalName: hospital.name,
+    patientName: patient?.name,
+    doctorName: doctor.name,
+    reason: reason || 'Unavoidable circumstances',
+    sessionLabel: sessionLabel || 'session'
+  };
 
-  return sendWhatsApp(hospital, patient.phone, msg);
+  const defaultMsg =
+    `🏥 *${data.hospitalName}*\n\n` +
+    `❌ *Session Cancelled*\n\n` +
+    `🩺 Dr. ${data.doctorName}'s session (${data.sessionLabel}) today has been cancelled.\n` +
+    `📝 Reason: ${data.reason}\n\n` +
+    `📞 Please contact reception to reschedule.`;
+
+  return sendWhatsApp(hospital, patient.phone, defaultMsg, 'cancel', data);
 }
 
 /**

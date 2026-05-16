@@ -126,6 +126,7 @@ app.use('/api/prescriptions', require('./routes/prescriptions'));
 app.use('/api/display',       require('./routes/displayRoute'));
 app.use('/api/system',        require('./routes/system'));
 app.use('/api/subscriptions', require('./routes/subscriptions'));
+app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/drugs',         require('./routes/drugs'));
 
 // Backup routes

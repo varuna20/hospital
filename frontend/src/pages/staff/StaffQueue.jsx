@@ -10,6 +10,7 @@ import { useSocket } from '../../context/SocketContext';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import moment from 'moment';
 import { statusBadge, statusLabel, fMoney } from '../../utils/helpers';
 
 // ── SMS Message Modal ─────────────────────────────────────────────
@@ -130,6 +131,125 @@ function BulkMessageModal({ doctor, session, onClose }) {
           </button>
           <button onClick={onClose} className="btn-ghost">Cancel</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Doctor Requests Modal ─────────────────────────────────────────────
+function DoctorRequestsModal({ onClose }) {
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [moving, setMoving] = useState(null); // request being fulfilled
+  const [moveData, setMoveData] = useState({ newDate: '', newSessionId: '', newSessionLabel: '' });
+
+  const load = async () => {
+    try {
+      const { data } = await api.get('/doctors/requests/pending');
+      setRequests(data.requests || []);
+    } catch { toast.error('Failed to load requests'); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleStatus = async (id, status) => {
+    try {
+      await api.put(`/doctors/requests/${id}/status`, { status });
+      toast.success(`Request ${status}`);
+      load();
+    } catch { toast.error('Action failed'); }
+  };
+
+  const fulfillMove = async () => {
+    if (!moveData.newDate) return toast.error('New date required');
+    try {
+      await api.post('/appointments/move-session', {
+        doctorId: moving.doctorId._id,
+        oldDate: moving.date,
+        oldSessionId: moving.sessionId,
+        ...moveData
+      });
+      await api.put(`/doctors/requests/${moving._id}/status`, { status: 'fulfilled' });
+      toast.success('Patients moved and request fulfilled!');
+      setMoving(null);
+      load();
+    } catch (e) { toast.error(e.response?.data?.message || 'Move failed'); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="card max-w-2xl w-full shadow-2xl max-h-[80vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="section-title text-xl">👨‍⚕️ Doctor Change Requests</h2>
+          <button onClick={onClose} className="text-xl opacity-50 hover:opacity-100">✕</button>
+        </div>
+
+        {loading ? <p className="text-center py-10 opacity-30">Loading requests...</p> : 
+         requests.length === 0 ? <p className="text-center py-12 text-muted">No pending requests</p> : (
+          <div className="space-y-4">
+            {requests.map(r => (
+              <div key={r._id} className="p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-primary/30 transition-all">
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <h4 className="font-bold text-white text-base">Dr. {r.doctorId?.name}</h4>
+                    <p className="text-xs text-primary font-bold uppercase">{r.type} REQUEST</p>
+                  </div>
+                  <span className="text-[10px] text-muted">{moment(r.createdAt).fromNow()}</span>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4 mb-4 text-xs">
+                  <div>
+                    <p className="text-muted mb-0.5">Affected Session</p>
+                    <p className="text-white font-medium">{moment(r.date).format('LL')} — {r.sessionLabel}</p>
+                  </div>
+                  {r.type === 'reschedule' && (
+                    <div>
+                      <p className="text-amber-400 mb-0.5">Proposed New Date</p>
+                      <p className="text-white font-bold">{moment(r.proposedDate).format('LL')}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-3 rounded-xl bg-black/20 mb-4 border border-white/5">
+                  <p className="text-[10px] text-muted mb-1 uppercase font-bold">Reason:</p>
+                  <p className="text-sm text-white italic">"{r.reason}"</p>
+                </div>
+
+                <div className="flex gap-2">
+                  <button onClick={() => setMoving(r)} className="btn-primary text-xs flex-1 py-2">Fulfill / Move Patients</button>
+                  <button onClick={() => handleStatus(r._id, 'rejected')} className="btn-ghost text-xs py-2">Dismiss</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {moving && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90">
+            <div className="card max-w-md w-full shadow-2xl">
+              <h3 className="section-title mb-4">Fulfill Reschedule: Move Patients</h3>
+              <p className="text-xs text-muted mb-4">Moving patients from {moment(moving.date).format('LL')} to a new session.</p>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="label">New Appointment Date</label>
+                  <input type="date" className="input" defaultValue={moving.proposedDate ? moment(moving.proposedDate).format('YYYY-MM-DD') : ''}
+                    onChange={e => setMoveData({...moveData, newDate: e.target.value})} />
+                </div>
+                <div>
+                  <label className="label">New Session Name</label>
+                  <input type="text" className="input" placeholder="e.g. Morning Session" 
+                    onChange={e => setMoveData({...moveData, newSessionLabel: e.target.value})} />
+                </div>
+                <div className="flex gap-3 pt-4">
+                  <button onClick={fulfillMove} className="btn-primary flex-1">🚀 Move All & Notify</button>
+                  <button onClick={() => setMoving(null)} className="btn-ghost">Cancel</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -322,6 +442,7 @@ export default function StaffQueue() {
   const [refundApt, setRefundApt] = useState(null);
   const [messageApt, setMessageApt] = useState(null);
   const [showBulk, setShowBulk] = useState(false);
+  const [showRequests, setShowRequests] = useState(false);
   const sym = hospital?.payment?.currencySymbol || 'Rs.';
 
   // Load doctors
@@ -441,11 +562,40 @@ export default function StaffQueue() {
   const refunds   = apts.filter(a => a.refund?.status && a.refund.status !== 'none').length;
   const revenue   = apts.filter(a => a.paymentStatus === 'paid').reduce((s,a) => s + (a.fees?.totalAmount||0), 0);
 
+  const [showTicker, setShowTicker] = useState(false);
+  const [tickerMsg, setTickerMsg] = useState(hospital?.queueSettings?.announcement || '');
+
+  const saveTicker = async () => {
+    try {
+      await api.put(`/hospitals/${hospital._id}`, { 
+        queueSettings: { ...hospital.queueSettings, announcement: tickerMsg } 
+      });
+      toast.success('Announcement updated');
+      setShowTicker(false);
+      window.location.reload();
+    } catch { toast.error('Failed to update'); }
+  };
+
   return (
     <div>
       {refundApt && <RefundModal apt={refundApt} onClose={() => setRefundApt(null)} onDone={fetchQ} />}
       {messageApt && <MessageModal apt={messageApt} onClose={() => setMessageApt(null)} />}
       {showBulk && <BulkMessageModal doctor={selectedDoctor} session={availableSessions.find(s => s._id === selSession)} onClose={() => setShowBulk(false)} />}
+      {showRequests && <DoctorRequestsModal onClose={() => setShowRequests(false)} />}
+      
+      {showTicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
+          <div className="card w-full max-w-md">
+            <h3 className="section-title mb-4">Edit Scrolling Message</h3>
+            <textarea className="input min-h-[100px] mb-4" value={tickerMsg} onChange={e=>setTickerMsg(e.target.value)} 
+              placeholder="Enter message for waiting room display..." />
+            <div className="flex gap-2">
+              <button onClick={saveTicker} className="btn-primary flex-1">Save & Update Display</button>
+              <button onClick={()=>setShowTicker(false)} className="btn-ghost">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
@@ -468,6 +618,7 @@ export default function StaffQueue() {
             {doctors.length === 0 && <option value="">No doctors found</option>}
             {doctors.map(d => <option key={d._id} value={d._id}>{d.name} — {d.specialization}</option>)}
           </select>
+          <button onClick={()=>setShowTicker(true)} className="btn-ghost text-xs whitespace-nowrap h-10">📢 Edit Ticker</button>
           <Link to="/staff/booking" className="btn-primary text-sm whitespace-nowrap h-10 flex items-center">+ Book Patient</Link>
         </div>
       </div>
@@ -493,6 +644,7 @@ export default function StaffQueue() {
                 ? <button onClick={() => markArrived(selDoc, true)} className="text-xs px-3 py-2 rounded-xl font-medium" style={{ background:'rgba(16,185,129,0.15)',color:'#10b981' }}>✓ Mark Arrived</button>
                 : <button onClick={() => markArrived(selDoc, false)} className="text-xs px-3 py-2 rounded-xl" style={{ background:'rgba(239,68,68,0.1)',color:'#ef4444' }}>Mark Left</button>
               }
+              <button onClick={() => setShowRequests(true)} className="text-xs px-3 py-2 rounded-xl font-medium border border-blue-500/30 text-blue-400 hover:bg-blue-500/10">Doctor Requests</button>
               <button onClick={() => setShowBulk(true)} className="text-xs px-3 py-2 rounded-xl font-medium border border-primary/30 text-primary hover:bg-primary/10">Bulk Message</button>
               <button onClick={handleUpdateAnnouncement} className="text-xs px-3 py-2 rounded-xl font-medium border border-cyan-500/30 text-cyan-500 hover:bg-cyan-500/10">Edit Ticker</button>
               <button onClick={handleNotifyDelay} className="text-xs px-3 py-2 rounded-xl font-medium border border-amber-500/30 text-amber-500 hover:bg-amber-500/10">Notify Delay</button>

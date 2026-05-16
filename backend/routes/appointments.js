@@ -31,6 +31,19 @@ aptRouter.post('/book', async (req, res) => {
     const doctor = await Doctor.findById(doctorId);
     if (!doctor?.isActive) return res.status(404).json({ success: false, message: 'Doctor not found' });
 
+    // Vacation Check
+    if (doctor.vacation?.enabled) {
+      const bDate = moment(appointmentDate);
+      const isIndefinite = doctor.vacation.untilFurtherNotice;
+      const inRange = doctor.vacation.startDate && doctor.vacation.endDate && 
+                      bDate.isSameOrAfter(moment(doctor.vacation.startDate), 'day') && 
+                      bDate.isSameOrBefore(moment(doctor.vacation.endDate), 'day');
+      
+      if (isIndefinite || inRange) {
+        return res.status(400).json({ success: false, message: `Dr. ${doctor.name.replace('Dr. ','')} is currently on vacation. ${doctor.vacation.note || ''}` });
+      }
+    }
+
     let patient;
     let isGuestBooking = false;
     if (patientId) {
@@ -678,6 +691,106 @@ aptRouter.post('/cancel-session', protect, authorize('staff', 'admin'), async (r
     });
 
     res.json({ success: true, message: `Session cancelled and ${patients.length} patients notified` });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// ── Staff: Move all patients to a new session ───────────────────
+aptRouter.post('/move-session', protect, authorize('staff', 'admin', 'superadmin'), async (req, res) => {
+  try {
+    const { doctorId, oldDate, oldSessionId, newDate, newSessionId, newSessionLabel, notify = true } = req.body;
+    
+    if (!doctorId || !oldDate || !newDate) {
+      return res.status(400).json({ success: false, message: 'doctorId, oldDate, and newDate required' });
+    }
+
+    const startOld = moment(oldDate).startOf('day').toDate();
+    const endOld   = moment(oldDate).endOf('day').toDate();
+    const startNew = moment(newDate).startOf('day').toDate();
+    const endNew   = moment(newDate).endOf('day').toDate();
+
+    // 1. Find all appointments in the old session
+    const appointments = await Appointment.find({
+      doctor: doctorId,
+      appointmentDate: { $gte: startOld, $lte: endOld },
+      sessionId: oldSessionId,
+      status: 'booked'
+    }).populate('patient');
+
+    if (appointments.length === 0) {
+      return res.status(404).json({ success: false, message: 'No booked appointments found in the old session' });
+    }
+
+    // 2. Get last queue number in the new session to append
+    const lastApt = await Appointment.findOne({
+      doctor: doctorId,
+      appointmentDate: { $gte: startNew, $lte: endNew },
+      sessionId: newSessionId
+    }).sort({ queueNumber: -1 });
+
+    let nextQueue = (lastApt?.queueNumber || 0) + 1;
+
+    // 3. Update appointments
+    const hospital = await Hospital.findById(appointments[0].hospitalId);
+    const doctor   = await Doctor.findById(doctorId);
+
+    for (const apt of appointments) {
+      apt.appointmentDate = moment(newDate).set({
+        hour: moment(apt.appointmentDate).hour(),
+        minute: moment(apt.appointmentDate).minute()
+      }).toDate();
+      apt.sessionId    = newSessionId;
+      apt.sessionLabel = newSessionLabel;
+      apt.queueNumber  = nextQueue++;
+      await apt.save();
+
+      // 4. Notify patients if requested
+      if (notify) {
+        const dateStr = moment(newDate).format('YYYY-MM-DD');
+        const hospitalName = hospital.shortName || hospital.name;
+        const smsMsg = `${hospitalName}: Dear ${apt.patient?.name}, your appointment with Dr. ${doctor.name} has been moved to ${dateStr} (${newSessionLabel}). New Queue #: ${apt.queueNumber}.`;
+        
+        // SMS
+        sendHospitalSms({
+          hospitalId: hospital._id,
+          to: apt.patient?.phone,
+          templateType: 'change',
+          templateData: {
+            patientName: apt.patient?.name,
+            doctorName: doctor.name,
+            newDate: dateStr,
+            newTime: newSessionLabel,
+            queueNumber: apt.queueNumber,
+            hospitalName: hospital.shortName || hospital.name
+          }
+        }).catch(() => {});
+
+        // WhatsApp
+        if (hospital?.whatsapp?.enabled) {
+          sendCustomMessage(hospital, apt.patient, smsMsg).catch(() => {});
+        }
+      }
+    }
+    
+    // 5. Notify Doctor if requested
+    if (doctor.notificationSettings?.notifyReschedule !== false) {
+      const hospitalName = hospital.shortName || hospital.name;
+      const dateStr = moment(newDate).format('YYYY-MM-DD');
+      const docMsg = `${hospitalName}: Dr. ${doctor.name.replace('Dr. ','')}, your session on ${moment(oldDate).format('YYYY-MM-DD')} has been rescheduled to ${dateStr} (${newSessionLabel}). ${appointments.length} patients were moved.`;
+      
+      // SMS
+      sendHospitalSms({
+        hospitalId: hospital._id,
+        to: doctor.phone,
+        message: docMsg
+      }).catch(() => {});
+
+      // WhatsApp
+      if (hospital?.whatsapp?.enabled) {
+        sendCustomMessage(hospital, { phone: doctor.phone, name: doctor.name }, docMsg).catch(() => {});
+      }
+    }
+
+    res.json({ success: true, count: appointments.length, message: `Moved ${appointments.length} patients to ${newDate}` });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 

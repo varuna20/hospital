@@ -17,20 +17,31 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     fetchSystemSettings();
-    try {
-      const token = localStorage.getItem('token');
-      const saved = localStorage.getItem('user');
-      if (token && saved) {
-        const u = JSON.parse(saved);
-        setUser(u);
-        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    const initAuth = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const saved = localStorage.getItem('user');
+        
+        if (token) {
+          api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          // Always try to fetch fresh user data if token exists
+          const { data } = await api.get('/auth/me');
+          if (data.success) {
+            setUser(data.user);
+            localStorage.setItem('user', JSON.stringify(data.user));
+          } else if (saved) {
+            setUser(JSON.parse(saved));
+          }
+        }
+      } catch (e) {
+        console.warn('Auth refresh failed, using saved data if available');
+        const saved = localStorage.getItem('user');
+        if (saved) setUser(JSON.parse(saved));
+      } finally {
+        setLoading(false);
       }
-    } catch (e) {
-      // Corrupted storage - clear it
-      localStorage.clear();
-    } finally {
-      setLoading(false);
-    }
+    };
+    initAuth();
   }, []);
 
   const login = (token, userData) => {

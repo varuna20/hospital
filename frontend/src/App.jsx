@@ -48,6 +48,8 @@ import DoctorDashboard    from './pages/doctor/DoctorDashboard';
 import DoctorRevenue      from './pages/doctor/DoctorRevenue';
 import DoctorPrescriptions from './pages/doctor/DoctorPrescriptions';
 import PrescriptionForm   from './pages/doctor/PrescriptionForm';
+import DoctorCalendar   from './pages/doctor/DoctorCalendar';
+import ProfilePage      from './pages/shared/ProfilePage';
 
 function Protected({ children, roles }) {
   const { user, loading } = useAuth();
@@ -94,6 +96,7 @@ export default function App() {
                 <Route path="subscriptions"  element={<SuperSubscriptions />} />
                 <Route path="system"         element={<SuperSystem />} />
                 <Route path="logs"           element={<SuperLogs />} />
+                <Route path="profile"        element={<ProfilePage />} />
               </Route>
 
               {/* Admin */}
@@ -105,6 +108,7 @@ export default function App() {
                 <Route path="settings" element={<AdminSettings />} />
                 <Route path="media"    element={<AdminMedia />} />
                 <Route path="drugs"    element={<DrugLibrary />} />
+                <Route path="profile"  element={<ProfilePage />} />
               </Route>
 
               {/* Staff */}
@@ -112,6 +116,7 @@ export default function App() {
                 <Route index          element={<StaffDashboard />} />
                 <Route path="queue"   element={<StaffQueue />} />
                 <Route path="booking" element={<StaffBooking />} />
+                <Route path="profile" element={<ProfilePage />} />
               </Route>
 
               {/* Doctor */}
@@ -122,6 +127,8 @@ export default function App() {
                 <Route path="prescriptions"     element={<DoctorPrescriptions />} />
                 <Route path="prescriptions/new" element={<PrescriptionForm />} />
                 <Route path="prescriptions/:id" element={<PrescriptionForm />} />
+                <Route path="calendar"          element={<DoctorCalendar />} />
+                <Route path="profile"           element={<ProfilePage />} />
               </Route>
 
               <Route path="*" element={<Navigate to="/" replace />} />
