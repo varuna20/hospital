@@ -186,6 +186,16 @@ function Slideshow({ items }) {
   );
 }
 
+function DisplayMedia({ hospital, isArrived }) {
+  const vid = hospital?.waitingVideo;
+  if (!isArrived && vid?.enabled && vid?.url) {
+    return (
+      <video src={fUrl(vid.url)} style={{ width:'100%', height:'100%', objectFit:'cover' }} autoPlay muted loop playsInline />
+    );
+  }
+  return <Slideshow items={hospital?.slideshow || []} />;
+}
+
 function Clock({ fs }) {
   const [t, setT] = useState(new Date());
   useEffect(() => { const id = setInterval(() => setT(new Date()), 1000); return () => clearInterval(id); }, []);
@@ -408,14 +418,14 @@ export default function DoctorDisplay() {
               <p style={{ color:'white', fontSize:20, fontWeight:600 }}>{hospital.showPatientName ? currentPatient?.name : ''}</p>
             </div>
             <div style={{ flex:1.5, borderRadius:24, overflow:'hidden', border:'1px solid rgba(255,255,255,0.1)' }}>
-              <Slideshow items={hospital.slideshow} />
+              <DisplayMedia hospital={hospital} isArrived={doctor?.isArrived} />
             </div>
           </div>
         </div>
       ) : hospital.displayLayout === 'split_view' ? (
         <div style={{ flex:1, display:'flex', overflow:'hidden' }}>
           <div style={{ flex:1, borderRight:'1px solid rgba(255,255,255,0.1)' }}>
-            <Slideshow items={hospital.slideshow} />
+            <DisplayMedia hospital={hospital} isArrived={doctor?.isArrived} />
           </div>
           <div style={{ flex:1, display:'flex', flexDirection:'column', padding:30, gap:30 }}>
             <div className="card-3d" style={{ flex:1, display:'flex', flexDir:'column', alignItems:'center', justifyContent:'center' }}>
@@ -455,14 +465,14 @@ export default function DoctorDisplay() {
             ))}
           </div>
           <div className="card-3d" style={{ flex:0.8 }}>
-            <Slideshow items={hospital.slideshow} />
+            <DisplayMedia hospital={hospital} isArrived={doctor?.isArrived} />
           </div>
         </div>
       ) : (
         /* Original Futuristic Layout */
         <div style={{ flex:1, display:'grid', gridTemplateColumns:'1fr 1.2fr 0.8fr', gap:15, padding:15, overflow:'hidden' }}>
           <div className="card-3d"><NowServing number={currentNumber} patientName={currentPatient?.name} showName={hospital.showPatientName} roomName={doctor?.room} sessionLabel={currentPatient?.sessionLabel} fs={FS.bigNum} /></div>
-          <div className="card-3d" style={{ padding:10 }}><Slideshow items={hospital.slideshow} /></div>
+          <div className="card-3d" style={{ padding:10 }}><DisplayMedia hospital={hospital} isArrived={doctor?.isArrived} /></div>
           <div style={{ display:'flex', flexDirection:'column', gap:15 }}>
             <div className="card-3d" style={{ padding:20, flex:1, textAlign:'center', display:'flex', flexDirection:'column', justifyContent:'center' }}>
                 <div style={{ fontSize:12, color:'rgba(255,255,255,0.4)', fontWeight:700, letterSpacing:2 }}>TOTAL BOOKED</div>

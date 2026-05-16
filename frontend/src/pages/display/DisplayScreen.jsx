@@ -64,6 +64,17 @@ function Slideshow({ items }) {
   );
 }
 
+function DisplayMedia({ hospital, doctors }) {
+  const vid = hospital?.waitingVideo;
+  const anyArrived = doctors?.some(d => d.todayStatus?.isArrived);
+  if (!anyArrived && vid?.enabled && vid?.url) {
+    return (
+      <video src={fUrl(vid.url)} style={{ width:'100%', height:'100%', objectFit:'cover' }} autoPlay muted loop playsInline />
+    );
+  }
+  return <Slideshow items={hospital?.slideshow || []} />;
+}
+
 export default function DisplayScreen() {
   const { hospitalId } = useParams();
   const navigate = useNavigate();
@@ -234,7 +245,7 @@ export default function DisplayScreen() {
             
             <div className="flex-1 flex flex-col gap-6">
               <div className="flex-1 rounded-2xl overflow-hidden border" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
-                <Slideshow items={hospital.slideshow} />
+                <DisplayMedia hospital={hospital} doctors={doctors} />
               </div>
             </div>
           </div>
@@ -269,7 +280,7 @@ export default function DisplayScreen() {
             </div>
             
             <div className="flex-1 rounded-2xl overflow-hidden border" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
-              <Slideshow items={hospital.slideshow} />
+              <DisplayMedia hospital={hospital} doctors={doctors} />
             </div>
           </div>
         )}
