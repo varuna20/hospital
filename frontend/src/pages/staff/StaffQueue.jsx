@@ -87,6 +87,55 @@ function MessageModal({ apt, onClose }) {
   );
 }
 
+// ── Bulk Message Modal ─────────────────────────────────────────────
+function BulkMessageModal({ doctor, session, onClose }) {
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const send = async () => {
+    if (!message.trim()) return toast.error('Please enter a message');
+    setLoading(true);
+    try {
+      await api.post('/appointments/bulk-notify', {
+        doctorId: doctor._id,
+        sessionId: session?._id,
+        message: message.trim()
+      });
+      toast.success('Bulk message sent to all active patients');
+      onClose();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to send');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="card max-w-lg w-full">
+        <h3 className="section-title mb-2">Bulk Notification</h3>
+        <p className="text-xs mb-4 text-muted">
+          Sending to all *Waiting* or *Arrived* patients for {doctor?.name} {session ? `(${session.label})` : '(All Sessions)'}.
+        </p>
+
+        <div className="mb-4">
+          <label className="label">Custom Message</label>
+          <textarea className="input min-h-[120px]" value={message} onChange={e => setMessage(e.target.value)}
+            placeholder="Type message to all patients..." />
+        </div>
+
+        <div className="flex gap-3">
+          <button onClick={send} disabled={loading || !message.trim()} className="btn-primary flex-1">
+            {loading ? 'Sending…' : '🚀 Send to All Patients'}
+          </button>
+          <button onClick={onClose} className="btn-ghost">Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 // ── Status action buttons ──────────────────────────────────────────
 function StatusActions({ apt, onUpdate, onRefundRequest, onSendMessage }) {
   const map = {
@@ -272,6 +321,7 @@ export default function StaffQueue() {
   const [showSession, setShowSession] = useState(false);
   const [refundApt, setRefundApt] = useState(null);
   const [messageApt, setMessageApt] = useState(null);
+  const [showBulk, setShowBulk] = useState(false);
   const sym = hospital?.payment?.currencySymbol || 'Rs.';
 
   // Load doctors
@@ -361,6 +411,18 @@ export default function StaffQueue() {
     .catch(() => toast.error('Cancellation failed'));
   };
 
+  const handleUpdateAnnouncement = () => {
+    const msg = prompt('Enter new scrolling message for displays:', hospital?.announcement || '');
+    if (msg === null) return;
+
+    api.put(`/hospitals/${hospital._id}/announcement`, { announcement: msg })
+      .then(() => {
+        toast.success('Display ticker updated!');
+        // Refresh local hospital data if needed, or just rely on socket for displays
+      })
+      .catch(() => toast.error('Failed to update ticker'));
+  };
+
   const selectedDoctor = doctors.find(d => d._id === selDoc);
   const dayOfWeek = new Date().getDay();
   const availableSessions = selectedDoctor ? (selectedDoctor.sessions || []).filter(s => s.dayOfWeek === dayOfWeek && s.isActive) : [];
@@ -383,6 +445,7 @@ export default function StaffQueue() {
     <div>
       {refundApt && <RefundModal apt={refundApt} onClose={() => setRefundApt(null)} onDone={fetchQ} />}
       {messageApt && <MessageModal apt={messageApt} onClose={() => setMessageApt(null)} />}
+      {showBulk && <BulkMessageModal doctor={selectedDoctor} session={availableSessions.find(s => s._id === selSession)} onClose={() => setShowBulk(false)} />}
 
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
@@ -430,12 +493,10 @@ export default function StaffQueue() {
                 ? <button onClick={() => markArrived(selDoc, true)} className="text-xs px-3 py-2 rounded-xl font-medium" style={{ background:'rgba(16,185,129,0.15)',color:'#10b981' }}>✓ Mark Arrived</button>
                 : <button onClick={() => markArrived(selDoc, false)} className="text-xs px-3 py-2 rounded-xl" style={{ background:'rgba(239,68,68,0.1)',color:'#ef4444' }}>Mark Left</button>
               }
-              {selSession && (
-                <>
-                  <button onClick={handleNotifyDelay} className="text-xs px-3 py-2 rounded-xl font-medium border border-amber-500/30 text-amber-500 hover:bg-amber-500/10">Notify Delay</button>
-                  <button onClick={handleCancelSession} className="text-xs px-3 py-2 rounded-xl font-medium border border-red-500/30 text-red-500 hover:bg-red-500/10">Cancel Session</button>
-                </>
-              )}
+              <button onClick={() => setShowBulk(true)} className="text-xs px-3 py-2 rounded-xl font-medium border border-primary/30 text-primary hover:bg-primary/10">Bulk Message</button>
+              <button onClick={handleUpdateAnnouncement} className="text-xs px-3 py-2 rounded-xl font-medium border border-cyan-500/30 text-cyan-500 hover:bg-cyan-500/10">Edit Ticker</button>
+              <button onClick={handleNotifyDelay} className="text-xs px-3 py-2 rounded-xl font-medium border border-amber-500/30 text-amber-500 hover:bg-amber-500/10">Notify Delay</button>
+              <button onClick={handleCancelSession} className="text-xs px-3 py-2 rounded-xl font-medium border border-red-500/30 text-red-500 hover:bg-red-500/10">Cancel Session</button>
               <button onClick={() => setShowSession(s=>!s)} className="btn-ghost text-xs">⏰ Session Times</button>
               <button onClick={callNext}
                 className="text-sm px-5 py-2 rounded-xl font-bold transition-all"

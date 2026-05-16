@@ -1,7 +1,5 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import { fUrl } from '../utils/api';
-import logoImg from '/chevara-brand.png';
 
 export default function ChevFooter({ minimal = false }) {
   const { systemSettings } = useAuth();
@@ -25,24 +23,15 @@ export default function ChevFooter({ minimal = false }) {
       transition: 'opacity 0.2s',
       opacity: 0.7,
     },
-    logo: {
-      height: minimal ? 22 : 28,
-      objectFit: 'contain',
-      display: 'block',
-      filter: 'brightness(0) invert(1)',
-      opacity: 0.6,
-    },
     text: {
       fontFamily: 'DM Sans, sans-serif',
-      fontSize: 9,
+      fontSize: 10,
       color: 'rgba(255,255,255,0.25)',
-      letterSpacing: '0.1em',
-      textTransform: 'uppercase',
-      marginBottom: 4,
+      letterSpacing: '0.05em',
+      textTransform: 'none',
     }
   };
 
-  const displayLogo = branding.logo ? fUrl(branding.logo) : logoImg;
   const displayText = branding.footerText || 'Powered by';
   const displayBrand = branding.brandName || 'Chevara Labs';
   const displayLink = branding.website || 'https://chevaralabs.com';
@@ -52,9 +41,9 @@ export default function ChevFooter({ minimal = false }) {
       <a href={displayLink} target="_blank" rel="noreferrer" style={style.link}
         onMouseEnter={e => e.currentTarget.style.opacity = '1'}
         onMouseLeave={e => e.currentTarget.style.opacity = '0.7'}>
-        <span style={style.text}>{displayText}</span>
-        <img src={displayLogo} alt={displayBrand} style={style.logo} />
+        <span style={style.text}>{displayText} {displayBrand}</span>
       </a>
     </div>
   );
 }
+

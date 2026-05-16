@@ -69,6 +69,15 @@ router.get('/mine', protect, authorize('admin', 'superadmin'), async (req, res) 
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
+// Alias for Admin Media Page to fix 404
+router.put('/:id/settings', protect, authorize('admin', 'superadmin'), async (req, res, next) => {
+  // We don't use router.handle because it might restart the middleware chain.
+  // Instead, just pass it through or let the next handler (the one below) catch it
+  // if we remove the /settings from the path.
+  req.url = `/${req.params.id}`;
+  next();
+});
+
 // ── Admin: update hospital settings ──────────────────────────────
 router.put('/:id', protect, authorize('admin', 'superadmin'), async (req, res) => {
   try {
@@ -262,6 +271,11 @@ const slideshowUpload = makeUpload('slideshow',
 router.post('/:id/slideshow', protect, authorize('admin','superadmin'),
   slideshowUpload.single('media'), async (req, res) => {
   try {
+    const hid = req.user.role === 'superadmin' ? req.params.id : (req.user.hospitalId?._id || req.user.hospitalId);
+    if (req.user.role !== 'superadmin' && hid.toString() !== req.params.id) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
     if (!req.file) return res.status(400).json({ success:false, message:'No file' });
     const isVideo = req.file.mimetype.startsWith('video');
     const url = '/uploads/slideshow/' + req.file.filename;
@@ -283,6 +297,11 @@ router.post('/:id/slideshow', protect, authorize('admin','superadmin'),
 // ── Slideshow: Update item (duration, caption, active) ────────────
 router.put('/:id/slideshow/:itemId', protect, authorize('admin','superadmin'), async (req, res) => {
   try {
+    const hid = req.user.role === 'superadmin' ? req.params.id : (req.user.hospitalId?._id || req.user.hospitalId);
+    if (req.user.role !== 'superadmin' && hid.toString() !== req.params.id) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
     const hospital = await Hospital.findOneAndUpdate(
       { _id: req.params.id, 'slideshow._id': req.params.itemId },
       { $set: {
@@ -297,9 +316,33 @@ router.put('/:id/slideshow/:itemId', protect, authorize('admin','superadmin'), a
   } catch(err) { res.status(500).json({ success:false, message:err.message }); }
 });
 
+// ── Slideshow: Bulk Delete ─────────────────────────────────────────
+router.post('/:id/slideshow/bulk-delete', protect, authorize('admin','superadmin'), async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids)) return res.status(400).json({ success:false, message:'Invalid IDs' });
+    
+    const hid = req.user.role === 'superadmin' ? req.params.id : (req.user.hospitalId?._id || req.user.hospitalId);
+    if (req.user.role !== 'superadmin' && hid.toString() !== req.params.id) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
+    const hospital = await Hospital.findByIdAndUpdate(req.params.id,
+      { $pull: { slideshow: { _id: { $in: ids } } } },
+      { new: true }
+    );
+    res.json({ success:true, slideshow: hospital.slideshow });
+  } catch(err) { res.status(500).json({ success:false, message:err.message }); }
+});
+
 // ── Slideshow: Delete item ─────────────────────────────────────────
 router.delete('/:id/slideshow/:itemId', protect, authorize('admin','superadmin'), async (req, res) => {
   try {
+    const hid = req.user.role === 'superadmin' ? req.params.id : (req.user.hospitalId?._id || req.user.hospitalId);
+    if (req.user.role !== 'superadmin' && hid.toString() !== req.params.id) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
     const hospital = await Hospital.findByIdAndUpdate(req.params.id,
       { $pull: { slideshow: { _id: req.params.itemId } } },
       { new: true }
@@ -359,6 +402,32 @@ router.post('/test-sms', protect, authorize('admin', 'superadmin'), async (req, 
     });
 
     res.json({ success: true, message: 'Test SMS sent successfully!', result });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── Update Announcement (Staff/Admin) ──────────────────────────────
+router.put('/:id/announcement', protect, authorize('staff', 'admin', 'superadmin'), async (req, res) => {
+  try {
+    const { announcement } = req.body;
+    const hid = req.user.role === 'superadmin' ? req.params.id : (req.user.hospitalId?._id || req.user.hospitalId);
+    
+    if (req.user.role !== 'superadmin' && hid.toString() !== req.params.id) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
+    const hospital = await Hospital.findByIdAndUpdate(req.params.id, { announcement }, { new: true });
+    if (!hospital) return res.status(404).json({ success: false, message: 'Hospital not found' });
+
+    // Notify displays via socket
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`hospital_${req.params.id}`).emit('announcement_updated', { announcement });
+      io.to(`display_${req.params.id}`).emit('announcement_updated', { announcement });
+    }
+
+    res.json({ success: true, message: 'Announcement updated successfully', announcement: hospital.announcement });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

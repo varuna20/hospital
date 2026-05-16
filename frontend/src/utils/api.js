@@ -39,14 +39,19 @@ export const fUrl = (url) => {
   let backendOrigin = '';
   if (base) {
     backendOrigin = base.endsWith('/api') ? base.slice(0, -4) : base;
-    // Remove trailing slash
-    backendOrigin = backendOrigin.replace(/\/$/, '');
+  } else if (import.meta.env.DEV) {
+    // Fallback for local development if VITE_API_URL is missing
+    backendOrigin = 'http://localhost:5000';
   }
+
+  // Remove trailing slash if present
+  backendOrigin = backendOrigin?.replace(/\/$/, '') || '';
 
   // Ensure path starts with /
   const path = url.startsWith('/') ? url : `/${url}`;
   return `${backendOrigin}${path}`;
 };
+
 
 export { base };
 export default api;

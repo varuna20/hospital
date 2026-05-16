@@ -23,6 +23,8 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useSocket } from '../../context/SocketContext';
 import api, { fUrl } from '../../utils/api';
+import Slideshow from '../../components/Slideshow';
+import ChevFooter from '../../components/ChevFooter';
 
 // ══════════════════════════════════════════════════════════════════
 //  GLOBAL STYLES
@@ -132,59 +134,7 @@ function speakNext(number, roomName) {
   setTimeout(() => window.speechSynthesis.speak(u), 300);
 }
 
-function Slideshow({ items }) {
-  const [idx, setIdx] = useState(0);
-  const active = useMemo(() => items?.filter(i => i.isActive) || [], [items]);
-  const cur = active[idx];
-  const timerRef = useRef(null);
 
-  const next = useCallback(() => {
-    if (active.length > 0) {
-      setIdx(prev => (prev + 1) % active.length);
-    }
-  }, [active.length]);
-
-  // Pre-cache media only when active items change
-  useEffect(() => {
-    active.forEach(item => {
-      const formattedUrl = fUrl(item.url);
-      if (item.type !== 'video') { const img = new Image(); img.src = formattedUrl; }
-      else { const v = document.createElement('video'); v.src = formattedUrl; v.preload = 'auto'; }
-    });
-  }, [active]);
-
-  // Handle auto-advance
-  useEffect(() => {
-    if (!active.length) return;
-    if (cur?.type === 'video') return; 
-    const d = Number(cur?.duration) || 10;
-    timerRef.current = setTimeout(next, d * 1000);
-    return () => clearTimeout(timerRef.current);
-  }, [idx, cur, active.length, next]);
-
-  if (!active.length) return (
-    <div style={{ width:'100%', height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.4)', borderRadius:16 }}>
-      <div style={{ fontSize:48, marginBottom:12, opacity:0.3 }}>🖼</div>
-      <p style={{ color:'rgba(255,255,255,0.2)', fontSize:14 }}>No media content</p>
-    </div>
-  );
-
-  return (
-    <div style={{ width:'100%', height:'100%', position:'relative', borderRadius:16, overflow:'hidden' }}>
-      <style>{`
-        @keyframes slideFadeIn { from{opacity:0;transform:scale(1.04)} to{opacity:1;transform:scale(1)} }
-        .slide-fade { animation: slideFadeIn 0.8s ease-out both; }
-      `}</style>
-      <div key={cur?._id || idx} className="slide-fade" style={{ width:'100%', height:'100%' }}>
-        {cur?.type === 'video' ? (
-          <video src={fUrl(cur.url)} style={{ width:'100%', height:'100%', objectFit:'cover' }} autoPlay muted playsInline onEnded={next} />
-        ) : (
-          <img src={fUrl(cur?.url)} style={{ width:'100%', height:'100%', objectFit:'cover' }} alt="Slide" />
-        )}
-      </div>
-    </div>
-  );
-}
 
 function DisplayMedia({ hospital, isArrived }) {
   const vid = hospital?.waitingVideo;
@@ -500,6 +450,9 @@ export default function DoctorDisplay() {
         <div className="ticker" style={{ fontFamily:'Oswald', fontSize:FS.ticker*1.8, fontWeight:900, color:'white', letterSpacing:3, textShadow:'2px 2px 4px rgba(0,0,0,0.5)' }}>
           &nbsp;&nbsp;&nbsp;&nbsp;{tickerText}&nbsp;&nbsp;&nbsp;&nbsp;•&nbsp;&nbsp;&nbsp;&nbsp;{tickerText}&nbsp;&nbsp;&nbsp;&nbsp;
         </div>
+      </div>
+      <div style={{ padding: '4px 20px', background: 'rgba(0,0,0,0.8)' }}>
+        <ChevFooter minimal={true} />
       </div>
       </div>
     </div>

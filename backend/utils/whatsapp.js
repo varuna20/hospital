@@ -217,10 +217,53 @@ async function sendDoctorSessionSummary(hospital, doctor, appointments) {
   return sendWhatsApp(hospital, doctor.phone, msg);
 }
 
+/**
+ * Notify about delay
+ */
+async function sendDelayAlert(hospital, patient, doctor, expectedTime, sessionLabel) {
+  const msg =
+    `🏥 *${hospital.name}*\n\n` +
+    `⏳ *Doctor Arriving Late*\n\n` +
+    `🩺 Dr. ${doctor.name} is delayed for the ${sessionLabel || 'session'}.\n` +
+    `⏰ Expected Time: *${expectedTime}*\n\n` +
+    `🙏 We apologize for the wait and appreciate your patience.`;
+
+  return sendWhatsApp(hospital, patient.phone, msg);
+}
+
+/**
+ * Notify about cancellation
+ */
+async function sendCancellationAlert(hospital, patient, doctor, reason, sessionLabel) {
+  const msg =
+    `🏥 *${hospital.name}*\n\n` +
+    `❌ *Session Cancelled*\n\n` +
+    `🩺 Dr. ${doctor.name}'s session (${sessionLabel || 'session'}) today has been cancelled.\n` +
+    `📝 Reason: ${reason || 'Unavoidable circumstances'}\n\n` +
+    `📞 Please contact our reception to reschedule your appointment.`;
+
+  return sendWhatsApp(hospital, patient.phone, msg);
+}
+
+/**
+ * Send custom message
+ */
+async function sendCustomMessage(hospital, patient, message) {
+  const msg =
+    `🏥 *${hospital.name}*\n\n` +
+    `${message}`;
+
+  return sendWhatsApp(hospital, patient.phone, msg);
+}
+
 module.exports = {
   sendWhatsApp,
   sendBookingConfirmation,
   sendTurnAlert,
   sendDoctorArrival,
-  sendDoctorSessionSummary
+  sendDoctorSessionSummary,
+  sendDelayAlert,
+  sendCancellationAlert,
+  sendCustomMessage
 };
+

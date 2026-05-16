@@ -31,13 +31,21 @@ function Toggle({ value, onChange, label, desc }) {
 }
 
 // ── Slideshow item card ─────────────────────────────────────────────
-function SlideCard({ item, onToggle, onDelete, onDurationChange, onCaptionChange }) {
+function SlideCard({ item, selected, onSelect, onToggle, onDelete, onDurationChange, onCaptionChange }) {
   const [dur, setDur] = useState(item.duration || 10);
   const [cap, setCap] = useState(item.caption || '');
   const [editing, setEditing] = useState(false);
 
   return (
-    <div className="card" style={{ padding: 12 }}>
+    <div className={`card transition-all ${selected ? 'ring-2 ring-primary border-primary' : ''}`} 
+         style={{ padding: 12, position: 'relative' }}>
+      
+      {/* Checkbox */}
+      <div className="absolute top-3 right-3 z-10" onClick={e => e.stopPropagation()}>
+        <input type="checkbox" checked={selected} onChange={() => onSelect(item._id)}
+          className="w-5 h-5 rounded border-white/20 bg-black/40 text-primary focus:ring-primary cursor-pointer" />
+      </div>
+
       {/* Preview */}
       <div style={{ borderRadius: 10, overflow: 'hidden', marginBottom: 10, height: 140, background: '#000', position: 'relative' }}>
         {item.type === 'video' ? (
@@ -114,6 +122,7 @@ export default function AdminMedia() {
   const [newTemplate, setNewTemplate] = useState({ title: '', message: '' });
   const [savingAnnouncement, setSavingAnnouncement] = useState(false);
   const [activeTab, setActiveTab] = useState('slideshow');
+  const [selectedIds, setSelectedIds] = useState([]);
   const slideInput = useRef(null);
 
   const reload = () => {
@@ -175,6 +184,26 @@ export default function AdminMedia() {
   const deleteSlide = async (itemId) => {
     try { await api.delete(`/hospitals/${hid}/slideshow/${itemId}`); toast.success('Slide removed'); reload(); }
     catch { toast.error('Failed'); }
+  };
+
+  const deleteSelected = async () => {
+    if (!selectedIds.length) return;
+    if (!window.confirm(`Delete ${selectedIds.length} selected items?`)) return;
+    try {
+      await api.post(`/hospitals/${hid}/slideshow/bulk-delete`, { ids: selectedIds });
+      toast.success('Selected items removed');
+      setSelectedIds([]);
+      reload();
+    } catch { toast.error('Bulk deletion failed'); }
+  };
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const selectAll = () => {
+    if (selectedIds.length === slides.length) setSelectedIds([]);
+    else setSelectedIds(slides.map(s => s._id));
   };
 
   const updateSlideDuration = async (itemId, duration) => {
@@ -299,14 +328,24 @@ export default function AdminMedia() {
             </div>
           ) : (
             <div>
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-semibold text-white">{slides.length} slides · {slides.filter(s => s.isActive).length} active</p>
-                <a href={`/display/${hid}`} target="_blank" rel="noreferrer"
-                  className="btn-ghost text-xs">📺 Preview Display →</a>
+              <div className="flex items-center justify-between mb-4 bg-white/5 p-3 rounded-xl border border-white/10">
+                <div className="flex items-center gap-4">
+                  <button onClick={selectAll} className="text-xs font-medium text-primary hover:underline">
+                    {selectedIds.length === slides.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                  <p className="text-xs text-white/50">{selectedIds.length} items selected</p>
+                </div>
+                {selectedIds.length > 0 && (
+                  <button onClick={deleteSelected} className="text-xs px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-all">
+                    🗑 Delete Selected ({selectedIds.length})
+                  </button>
+                )}
               </div>
               <div className="grid md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                 {slides.map(item => (
-                  <SlideCard key={item._id} item={item}
+                  <SlideCard key={item._id} item={item} 
+                    selected={selectedIds.includes(item._id)}
+                    onSelect={toggleSelect}
                     onToggle={toggleSlide} onDelete={deleteSlide}
                     onDurationChange={updateSlideDuration} onCaptionChange={updateSlideCaption} />
                 ))}

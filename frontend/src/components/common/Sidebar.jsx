@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { fUrl } from '../../utils/api';
 
 const NAV = {
   superadmin: [
@@ -55,7 +56,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
       <div className="p-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
         <div className="flex items-center gap-3 min-w-0">
           {hospital?.logo ? (
-            <img src={hospital.logo} alt="logo" className="w-8 h-8 rounded-lg object-contain flex-shrink-0" />
+            <img src={fUrl(hospital.logo)} alt="logo" className="w-8 h-8 rounded-lg object-contain flex-shrink-0" />
           ) : (
             <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
               style={{ background: primary }}>

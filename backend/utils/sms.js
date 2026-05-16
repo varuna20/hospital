@@ -225,6 +225,16 @@ const templates = {
     `${hospitalName}: Dear ${name}, ` +
     `your portal password has been reset to: ${password}\n` +
     `Please change it after logging in.`,
+
+  late: ({ hospitalName, doctorName, patientName, expectedTime, sessionLabel }) =>
+    `${hospitalName}: Hi ${patientName}, Dr ${doctorName} is arriving late for the ${sessionLabel || 'session'}.\n` +
+    `Expected time: ${expectedTime}.\n` +
+    `We apologize for the inconvenience.`,
+
+  cancel: ({ hospitalName, doctorName, patientName, reason, sessionLabel, date }) =>
+    `${hospitalName}: Hi ${patientName}, the session with Dr ${doctorName} on ${date} (${sessionLabel || 'session'}) has been cancelled.\n` +
+    `Reason: ${reason}.\n` +
+    `Please contact us to reschedule.`,
 };
 
 // Aliases for backward compatibility

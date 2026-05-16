@@ -10,7 +10,13 @@ const Doctor   = require('../models/Doctor');
 const Queue    = require('../models/Queue');
 const Hospital = require('../models/Hospital');
 const { protect, authorize , getHospitalId } = require('../middleware/auth');
-const { sendBookingConfirmation, sendTurnAlert } = require('../utils/whatsapp');
+const { 
+  sendBookingConfirmation, 
+  sendTurnAlert, 
+  sendDelayAlert, 
+  sendCancellationAlert, 
+  sendCustomMessage 
+} = require('../utils/whatsapp');
 const moment = require('moment');
 const crypto = require('crypto');
 
@@ -496,11 +502,60 @@ aptRouter.get('/refunds/pending', protect, authorize('staff', 'admin', 'doctor',
       .sort({ 'refund.requestedAt': -1 })
       .limit(50);
 
+
+
     res.json({ success: true, refunds });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
 // ── BULK SESSION ACTIONS ───────────────────────────────────────────
+
+// Staff: Notify all patients about something custom
+aptRouter.post('/bulk-notify', protect, authorize('staff', 'admin'), async (req, res) => {
+  try {
+    const { doctorId, sessionId, message } = req.body;
+    if (!message) return res.status(400).json({ success: false, message: 'Message is required' });
+
+    const hospitalId = getHospitalId(req);
+    const today = moment().startOf('day').toDate();
+    const todayEnd = moment().endOf('day').toDate();
+
+    const hospital = await Hospital.findById(hospitalId);
+    const filter = {
+      doctor: doctorId,
+      appointmentDate: { $gte: today, $lte: todayEnd },
+      status: { $in: ['booked', 'arrived'] }
+    };
+    if (sessionId) filter.sessionId = sessionId;
+
+    const patients = await Appointment.find(filter).populate('patient');
+    
+    const { SystemSettings } = require('../models/SystemSettings');
+    const settings = await SystemSettings.findOne();
+    const smsEnabled = hospital?.sms?.enabled || settings?.sms?.enabled;
+    const waEnabled = hospital?.whatsapp?.enabled;
+
+    for (const apt of patients) {
+      if (!apt.patient?.phone) continue;
+
+      // SMS
+      if (smsEnabled) {
+        sendHospitalSms({
+          hospitalId: hospital._id,
+          to: apt.patient.phone,
+          message: `${hospital.shortName || hospital.name}: ${message}`
+        }).catch(() => {});
+      }
+
+      // WhatsApp
+      if (waEnabled && apt.patient.whatsappOptIn !== false) {
+        sendCustomMessage(hospital, apt.patient, message).catch(() => {});
+      }
+    }
+
+    res.json({ success: true, message: `Notification sent to ${patients.length} patients` });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
 
 // Staff: Mark doctor as late for a session
 aptRouter.post('/notify-delay', protect, authorize('staff', 'admin'), async (req, res) => {
@@ -522,14 +577,17 @@ aptRouter.post('/notify-delay', protect, authorize('staff', 'admin'), async (req
 
     const patients = await Appointment.find(filter).populate('patient');
     
-    // Send SMS to all
+    // Notifications
     const { SystemSettings } = require('../models/SystemSettings');
     const settings = await SystemSettings.findOne();
     const smsEnabled = hospital?.sms?.enabled || settings?.sms?.enabled;
+    const waEnabled = hospital?.whatsapp?.enabled;
 
-    if (smsEnabled) {
-      for (const apt of patients) {
-        if (!apt.patient?.phone) continue;
+    for (const apt of patients) {
+      if (!apt.patient?.phone) continue;
+
+      // SMS
+      if (smsEnabled) {
         sendHospitalSms({
           hospitalId: hospital._id,
           to: apt.patient.phone,
@@ -543,9 +601,14 @@ aptRouter.post('/notify-delay', protect, authorize('staff', 'admin'), async (req
           }
         }).catch(() => {});
       }
+
+      // WhatsApp
+      if (waEnabled && apt.patient.whatsappOptIn !== false) {
+        sendDelayAlert(hospital, apt.patient, doctor, expectedTime, sessionLabel).catch(() => {});
+      }
     }
 
-    res.json({ success: true, message: `Notification sent to ${patients.length} patients` });
+    res.json({ success: true, message: `Delay notification sent to ${patients.length} patients` });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
@@ -576,10 +639,13 @@ aptRouter.post('/cancel-session', protect, authorize('staff', 'admin'), async (r
     const { SystemSettings } = require('../models/SystemSettings');
     const settings = await SystemSettings.findOne();
     const smsEnabled = hospital?.sms?.enabled || settings?.sms?.enabled;
+    const waEnabled = hospital?.whatsapp?.enabled;
 
-    if (smsEnabled) {
-      for (const apt of patients) {
-        if (!apt.patient?.phone) continue;
+    for (const apt of patients) {
+      if (!apt.patient?.phone) continue;
+
+      // SMS
+      if (smsEnabled) {
         sendHospitalSms({
           hospitalId: hospital._id,
           to: apt.patient.phone,
@@ -593,6 +659,11 @@ aptRouter.post('/cancel-session', protect, authorize('staff', 'admin'), async (r
             reason: reason || 'unavoidable circumstances'
           }
         }).catch(() => {});
+      }
+
+      // WhatsApp
+      if (waEnabled && apt.patient.whatsappOptIn !== false) {
+        sendCancellationAlert(hospital, apt.patient, doctor, reason, sessionLabel).catch(() => {});
       }
     }
 
