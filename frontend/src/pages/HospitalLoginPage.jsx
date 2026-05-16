@@ -341,7 +341,7 @@ export default function HospitalLoginPage() {
 
           {/* Chevara logo */}
           <div style={{ textAlign:'center', marginTop:24 }}>
-            <img src="/chevara-logo.png" alt="Chevara Labs" style={{ height:22, objectFit:'contain', opacity:0.4 }} />
+            <img src="/chevara-brand.png" alt="Chevara Labs" style={{ height:22, objectFit:'contain', opacity:0.4 }} />
           </div>
         </div>
       </div>

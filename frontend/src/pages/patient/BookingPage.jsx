@@ -216,7 +216,7 @@ export default function BookingPage() {
             {selHospital?.city && <p className="text-white/40 text-[10px] md:text-xs">{selHospital.city}</p>}
           </div>
         </div>
-        <img src="/chevara-logo.png" alt="Chevara Labs" className="h-5 md:h-6 object-contain opacity-40 shrink-0 ml-2" />
+        <img src="/chevara-brand.png" alt="Chevara Labs" className="h-5 md:h-6 object-contain opacity-40 shrink-0 ml-2" />
       </header>
 
       {/* Main content */}

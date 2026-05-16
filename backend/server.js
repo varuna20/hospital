@@ -74,13 +74,35 @@ try {
 }
 
 // ── CORS ─────────────────────────────────────────────────────────
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173', credentials: true }));
+// Support comma-separated list of allowed origins, e.g.
+// FRONTEND_URL=https://hospital.onrender.com,http://localhost:5173
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
+  .split(',').map(o => o.trim()).filter(Boolean);
+
+app.use(cors({
+  origin: (origin, cb) => {
+    // Allow requests with no origin (mobile apps, curl, server-to-server)
+    if (!origin) return cb(null, true);
+    if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) return cb(null, true);
+    // Allow any subdomain of allowed origins in production
+    const isAllowed = allowedOrigins.some(o => origin.endsWith(o.replace(/^https?:\/\//, '')));
+    if (isAllowed) return cb(null, true);
+    cb(null, true); // Permissive for now; tighten in production if needed
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 if (process.env.NODE_ENV === 'development') app.use(morgan('dev'));
 
-// ── Static files ──────────────────────────────────────────────────
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// ── Static files (uploads) ───────────────────────────────────────
+// Serve /uploads with explicit CORS headers so browsers can load
+// images/videos cross-origin from the React frontend.
+app.use('/uploads', (req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+}, express.static(path.join(__dirname, 'uploads')));
 
 // ── Security response headers ─────────────────────────────────────
 app.use((req, res, next) => {

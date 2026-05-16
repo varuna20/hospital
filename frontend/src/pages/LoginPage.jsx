@@ -155,7 +155,7 @@ export default function LoginPage() {
 
           {/* Chevara logo above card */}
           <div className="flex justify-center mb-5">
-            <img src={branding.logo ? fUrl(branding.logo) : '/chevara-logo.png'} alt={branding.brandName || 'Chevara Labs'} style={{ height:36, objectFit:'contain', opacity:0.8 }} />
+            <img src={branding.logo ? fUrl(branding.logo) : '/chevara-brand.png'} alt={branding.brandName || 'Chevara Labs'} style={{ height:36, objectFit:'contain', opacity:0.8 }} />
           </div>
 
           <div className="card" style={{ borderColor: `${theme.primary}33` }}>

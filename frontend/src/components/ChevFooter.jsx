@@ -26,9 +26,11 @@ export default function ChevFooter({ minimal = false }) {
       opacity: 0.7,
     },
     logo: {
-      height: minimal ? 28 : 36,
+      height: minimal ? 22 : 28,
       objectFit: 'contain',
       display: 'block',
+      filter: 'brightness(0) invert(1)',
+      opacity: 0.6,
     },
     text: {
       fontFamily: 'DM Sans, sans-serif',
@@ -36,17 +38,7 @@ export default function ChevFooter({ minimal = false }) {
       color: 'rgba(255,255,255,0.25)',
       letterSpacing: '0.1em',
       textTransform: 'uppercase',
-      marginBottom: 8,
-    },
-    badge: {
-      background: '#fff',
-      padding: '8px 16px',
-      borderRadius: '12px',
-      display: 'inline-flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-      border: '1px solid rgba(0,0,0,0.05)',
+      marginBottom: 4,
     }
   };
 
@@ -61,9 +53,7 @@ export default function ChevFooter({ minimal = false }) {
         onMouseEnter={e => e.currentTarget.style.opacity = '1'}
         onMouseLeave={e => e.currentTarget.style.opacity = '0.7'}>
         <span style={style.text}>{displayText}</span>
-        <div style={style.badge}>
-          <img src={displayLogo} alt={displayBrand} style={style.logo} />
-        </div>
+        <img src={displayLogo} alt={displayBrand} style={style.logo} />
       </a>
     </div>
   );
