@@ -107,7 +107,10 @@ export default function AdminStaff() {
       .catch(() => {})
       .finally(() => setLoading(false));
   };
-  useEffect(() => { if (hid) fetch(); }, [hid]);
+  useEffect(() => { 
+    if (hid) fetch(); 
+    else if (!useAuth().loading) setLoading(false);
+  }, [hid, useAuth().loading]);
 
   const toggle = async (id) => {
     try { await api.put(`/hospitals/users/${id}/toggle`); fetch(); }

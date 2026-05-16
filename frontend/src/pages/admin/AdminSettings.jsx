@@ -50,24 +50,34 @@ const AUDIT_ACTIONS = [
   { id: 'IMPORT_DRUGS_CSV', label: 'Import CSV' },
   { id: 'UPDATE_DOCTOR_SCHEDULE', label: 'Schedule Edit' },
   { id: 'UPDATE_DOCTOR_SESSION', label: 'Session Edit' },
+  { id: 'UPDATE_DOCTOR_VACATION', label: 'Vacation Toggle' },
+  { id: 'CREATE_DOCTOR_PROFILE', label: 'Doctor Added' },
   { id: 'APPOINTMENT_BOOKED', label: 'New Booking' },
   { id: 'APPOINTMENT_STATUS_CHANGE', label: 'Queue Status' },
   { id: 'QUEUE_RESET', label: 'Queue Reset' },
-  { id: 'REFUND_REQUESTED', label: 'Refund Requested' },
-  { id: 'REFUND_DOCTOR_APPROVED', label: 'Refund Approved' },
-  { id: 'REFUND_COMPLETED', label: 'Refund Completed' },
+  { id: 'ADD_STAFF', label: 'Staff Added' },
+  { id: 'TOGGLE_STAFF_STATUS', label: 'Staff Status' },
+  { id: 'RESET_STAFF_PASSWORD', label: 'Staff PW Reset' },
+  { id: 'UPDATE_LOGO', label: 'Logo Update' },
+  { id: 'UPDATE_ANNOUNCEMENT', label: 'Announcement' },
+  { id: 'UPDATE_WAITING_VIDEO', label: 'Video Update' },
+  { id: 'BULK_DELETE_SLIDESHOW', label: 'Media Bulk Del' },
   { id: 'PRESCRIPTION_CREATED', label: 'Prescription' },
-  { id: 'PRESCRIPTION_UPDATED', label: 'Rx Update' }
+  { id: 'PRESCRIPTION_UPDATED', label: 'Rx Update' },
+  { id: 'REFUND_REQUESTED', label: 'Refund Requested' },
+  { id: 'REFUND_COMPLETED', label: 'Refund Completed' }
 ];
 
 const TARGET_TYPES = [
   { id: '', label: 'All Targets' },
-  { id: 'Drug', label: 'Drugs' },
+  { id: 'Hospital', label: 'Settings' },
+  { id: 'User', label: 'Staff/Users' },
   { id: 'Doctor', label: 'Doctors' },
+  { id: 'Drug', label: 'Drugs' },
   { id: 'Appointment', label: 'Bookings' },
-  { id: 'Refund', label: 'Refunds' },
+  { id: 'Prescription', label: 'Prescriptions' },
   { id: 'Queue', label: 'Queue' },
-  { id: 'Prescription', label: 'Prescriptions' }
+  { id: 'Refund', label: 'Refunds' }
 ];
 
 export default function AdminSettings() {
@@ -85,11 +95,14 @@ export default function AdminSettings() {
   const [auditFilter, setAuditFilter] = useState({ action: '', targetType: '' });
 
   useEffect(()=>{
-    if(!hid) return;
+    if(!hid) {
+      if (!useAuth().loading) setLoading(false);
+      return;
+    }
     api.get('/hospitals/mine?hospitalId='+hid).then(({data})=>{ 
       if(data.success) setS(data.hospital); 
     }).catch(()=>toast.error('Load failed')).finally(()=>setLoading(false));
-  },[hid]);
+  },[hid, useAuth().loading]);
 
   const fetchLogs = () => {
     setLoadingLogs(true);

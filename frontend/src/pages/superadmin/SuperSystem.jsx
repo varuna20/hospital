@@ -9,7 +9,8 @@
  */
 import React, { useState, useEffect } from 'react';
 import api, { fUrl } from '../../utils/api';
-import toast from 'react-hot-toast';
+import { toast } from 'react-hot-toast';
+import { useSocket } from '../../context/SocketContext';
 import { fDate } from '../../utils/helpers';
 
 function Toggle({ value, onChange, label, desc }) {
@@ -41,6 +42,9 @@ export default function SuperSystem() {
   const [activeTab, setActiveTab] = useState('branding');
   const [logoFile, setLogoFile] = useState(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const backingRef = React.useRef(false);
+
+  const { socket, backupProgress, restoreProgress } = useSocket();
 
   const loadAll = () => {
     Promise.all([
@@ -52,7 +56,38 @@ export default function SuperSystem() {
     }).catch(()=>{}).finally(()=>setLoading(false));
   };
 
-  useEffect(()=>{ loadAll(); },[]);
+  useEffect(()=>{ 
+    loadAll(); 
+  },[]);
+
+  // Update button states based on global progress
+  useEffect(() => {
+    if (backupProgress) {
+      if (backupProgress.status === 'complete' || backupProgress.status === 'error') {
+        setBacking(false);
+        backingRef.current = false;
+        if (backupProgress.status === 'complete') loadAll();
+      } else {
+        setBacking(true);
+        backingRef.current = true;
+      }
+    } else {
+      setBacking(false);
+      backingRef.current = false;
+    }
+  }, [backupProgress]);
+
+  useEffect(() => {
+    if (restoreProgress) {
+      if (restoreProgress.percent === 100 || restoreProgress.status === 'error') {
+        setRestoring('');
+      } else {
+        if (!restoring) setRestoring('ongoing');
+      }
+    } else {
+      setRestoring('');
+    }
+  }, [restoreProgress]);
 
   const save = async () => {
     setSaving(true);
@@ -83,22 +118,42 @@ export default function SuperSystem() {
 
   const triggerBackup = async () => {
     setBacking(true);
+    backingRef.current = true;
+    setBackupProgress({ percent: 0, message: 'Initializing...' });
     try {
       const { data } = await api.post('/backup/now');
       toast.success(data.message || 'Backup started');
-      setTimeout(()=>{ api.get('/backup/list').then(r=>setBackups(r.data.backups||[])).catch(()=>{}); }, 4000);
-    } catch(e){ toast.error(e.response?.data?.message||'Backup failed'); }
-    finally{ setBacking(false); }
+      
+      // Fallback: Use ref to check current state
+      setTimeout(() => {
+        if (backingRef.current) {
+          console.warn('Backup timeout fallback triggered');
+          api.get('/backup/list').then(r => setBackups(r.data.backups || [])).catch(() => {});
+          setBacking(false);
+          backingRef.current = false;
+          // Don't clear backupProgress immediately to let user see it finished/failed
+        }
+      }, 30000); // 30 seconds for large files
+    } catch(e){ 
+      toast.error(e.response?.data?.message||'Backup failed'); 
+      setBacking(false);
+      backingRef.current = false;
+      setBackupProgress(null);
+    }
   };
 
   const restoreBackup = async (filename) => {
     if (!window.confirm(`⚠️ RESTORE from "${filename}"?\n\nThis will REPLACE ALL current data. This cannot be undone.\n\nAre you sure?`)) return;
     setRestoring(filename);
+    setRestoreProgress({ percent: 0, message: 'Connecting...' });
     try {
       const { data } = await api.post('/backup/restore/' + filename);
       toast.success(data.message);
-    } catch(e){ toast.error(e.response?.data?.message||'Restore failed'); }
-    finally{ setRestoring(''); }
+    } catch(e){ 
+      toast.error(e.response?.data?.message||'Restore failed'); 
+      setRestoring('');
+      setRestoreProgress(null);
+    }
   };
 
   const deleteBackup = async (filename) => {
@@ -343,11 +398,26 @@ export default function SuperSystem() {
                 )}
               </div>
             )}
-            <div className="flex gap-3">
-              <button onClick={save} disabled={saving} className="btn-primary">{saving?'Saving…':'Save Config'}</button>
-              <button onClick={triggerBackup} disabled={backing} className="btn-ghost">
-                {backing?<><span className="animate-spin inline-block mr-1">⟳</span>Creating backup…</>:'▶ Backup Now'}
-              </button>
+            <div className="flex flex-col gap-3">
+              <div className="flex gap-3">
+                <button onClick={save} disabled={saving} className="btn-primary">{saving?'Saving…':'Save Config'}</button>
+                <button onClick={triggerBackup} disabled={backing} className="btn-ghost">
+                  {backing?<><span className="animate-spin inline-block mr-1">⟳</span>Creating backup…</>:'▶ Backup Now'}
+                </button>
+              </div>
+
+              {backupProgress && (
+                <div className="mt-2 space-y-1.5">
+                  <div className="flex justify-between text-[10px] font-medium mb-1">
+                    <span style={{ color:'var(--color-primary)' }}>{backupProgress.status === 'complete' ? 'Backup Finished' : 'Zipping Media & Data...'}</span>
+                    <span>{backupProgress.percent}%</span>
+                  </div>
+                  <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
+                    <div className="bg-primary h-full transition-all duration-300" style={{ width: `${backupProgress.percent}%` }} />
+                  </div>
+                  {backupProgress.processed && <p className="text-[9px] text-white/40">Processed {backupProgress.processed} entries...</p>}
+                </div>
+              )}
             </div>
           </div>
 
@@ -357,6 +427,19 @@ export default function SuperSystem() {
               <h3 className="section-title">Backup Files</h3>
               <button onClick={()=>api.get('/backup/list').then(r=>setBackups(r.data.backups||[])).catch(()=>{})} className="btn-ghost text-xs">↻ Refresh</button>
             </div>
+
+            {restoreProgress && (
+              <div className="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                <div className="flex justify-between text-xs font-bold mb-2" style={{ color:'#f59e0b' }}>
+                  <span>SYSTEM RESTORE IN PROGRESS</span>
+                  <span>{restoreProgress.percent}%</span>
+                </div>
+                <div className="w-full bg-white/5 rounded-full h-2 overflow-hidden mb-2">
+                  <div className="bg-amber-500 h-full transition-all duration-300" style={{ width: `${restoreProgress.percent}%` }} />
+                </div>
+                <p className="text-[10px] italic text-white/60">{restoreProgress.message}</p>
+              </div>
+            )}
             {backups.length===0?(
               <div className="text-center py-8" style={{ color:'var(--color-text-muted)' }}>
                 <div className="text-3xl mb-2">💾</div>
@@ -374,11 +457,15 @@ export default function SuperSystem() {
                       </p>
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
-                      <a href={'/api/backup/download/'+b.filename} download
+                      <button onClick={() => {
+                        const token = localStorage.getItem('token');
+                        const downloadUrl = fUrl(`/api/backup/download/${b.filename}?token=${token}`);
+                        window.location.href = downloadUrl;
+                      }}
                         className="text-xs px-3 py-1.5 rounded-xl transition-all"
                         style={{ background:'rgba(var(--color-primary-rgb),0.1)',color:'var(--color-primary)' }}>
                         ⬇ Download
-                      </a>
+                      </button>
                       <button onClick={()=>restoreBackup(b.filename)} disabled={!!restoring}
                         className="text-xs px-3 py-1.5 rounded-xl transition-all"
                         style={{ background:'rgba(245,158,11,0.1)',color:'#f59e0b' }}>
@@ -420,7 +507,7 @@ export default function SuperSystem() {
               ['CORS Policy',                    'Restricted to FRONTEND_URL env variable', true],
               ['Doctor Data Isolation',          'Doctors can only access their own patient records', true],
               ['Hospital Data Isolation',        'All queries scoped by hospitalId', true],
-              ['Audit Logging',                  'Coming in next version', false],
+              ['Audit Logging',                  'Active: All admin/staff actions are tracked', true],
               ['HTTPS/TLS',                      'Configure in your web server (Nginx/Apache)', null],
               ['MongoDB Encryption at Rest',     'Enable in MongoDB Atlas or mongod.conf', null],
             ].map(([l, v, ok])=>(

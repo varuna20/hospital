@@ -251,7 +251,17 @@ router.put('/:id', protect, authorize('doctor'), async (req, res) => {
 // ── Mark as printed ────────────────────────────────────────────────
 router.put('/:id/printed', protect, authorize('doctor', 'admin'), async (req, res) => {
   try {
-    await Prescription.findByIdAndUpdate(req.params.id, { isPrinted: true, printedAt: new Date() });
+    const prescription = await Prescription.findByIdAndUpdate(req.params.id, { isPrinted: true, printedAt: new Date() }).populate('patient', 'name');
+
+    // Audit log
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req, {
+      action: 'PRESCRIPTION_PRINTED',
+      targetType: 'Prescription',
+      targetId: req.params.id,
+      targetName: `Prescription for ${prescription?.patient?.name}`
+    });
+
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

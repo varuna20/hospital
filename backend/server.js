@@ -37,7 +37,15 @@ try {
   }));
   app.use(mongoSanitize({ replaceWith: '_' }));
   app.use(hpp({ whitelist: ['status','role','doctorId','hospitalId'] }));
-  app.use(compression());
+  app.use(compression({
+    filter: (req, res) => {
+      // Don't compress if x-no-compression header is present or for backup routes
+      if (req.headers['x-no-compression'] || req.url.includes('/backup/download')) {
+        return false;
+      }
+      return compression.filter(req, res);
+    }
+  }));
   // Rate limiting
   // General API: 1000 requests per 15 min (generous for busy clinic staff)
   const apiLimiter = rateLimit({
@@ -129,8 +137,11 @@ app.use('/api/subscriptions', require('./routes/subscriptions'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/drugs',         require('./routes/drugs'));
 
-// Backup routes
-app.use('/api/backup', require('./routes/backup'));
+// Backup routes — disable compression for large file transfers
+app.use('/api/backup', (req, res, next) => {
+  req.headers['x-no-compression'] = 'true'; // Hint for compression middleware if supported
+  next();
+}, require('./routes/backup'));
 
 app.get('/api/health', (_, res) => res.json({ status: 'ok', version: '3.0', timestamp: new Date() }));
 

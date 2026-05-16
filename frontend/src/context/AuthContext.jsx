@@ -69,7 +69,7 @@ export function AuthProvider({ children }) {
     localStorage.setItem('user', JSON.stringify(updatedUser));
   };
 
-  const hospital = user?.hospital || null;
+  const hospital = user?.hospitalId || user?.hospital || null;
 
   return (
     <AuthContext.Provider value={{ user, hospital, login, logout, updateHospital, systemSettings, fetchSystemSettings, loading }}>

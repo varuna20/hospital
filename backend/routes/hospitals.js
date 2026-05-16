@@ -160,6 +160,17 @@ router.post('/:id/logo', protect, authorize('admin', 'superadmin'),
     if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
     const logoPath = '/uploads/logos/' + req.file.filename;
     const hospital = await Hospital.findByIdAndUpdate(req.params.id, { logo: logoPath }, { new: true });
+
+    // Audit log
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req, {
+      action: 'UPDATE_LOGO',
+      targetType: 'Hospital',
+      targetId: req.params.id,
+      targetName: hospital.name,
+      newValues: { logo: logoPath }
+    });
+
     res.json({ success: true, logo: logoPath, hospital });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
@@ -175,6 +186,17 @@ router.post('/:id/video', protect, authorize('admin', 'superadmin'),
       { 'waitingVideo.url': videoPath, 'waitingVideo.enabled': true, 'waitingVideo.filename': req.file.filename },
       { new: true }
     );
+
+    // Audit log
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req, {
+      action: 'UPDATE_WAITING_VIDEO',
+      targetType: 'Hospital',
+      targetId: req.params.id,
+      targetName: hospital.name,
+      newValues: { url: videoPath, filename: req.file.filename }
+    });
+
     res.json({ success: true, videoPath, hospital });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
@@ -188,6 +210,17 @@ router.put('/:id/video/toggle', protect, authorize('admin', 'superadmin', 'staff
       { 'waitingVideo.enabled': enabled },
       { new: true }
     );
+
+    // Audit log
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req, {
+      action: 'TOGGLE_WAITING_VIDEO',
+      targetType: 'Hospital',
+      targetId: req.params.id,
+      targetName: hospital.name,
+      newValues: { enabled }
+    });
+
     const io = req.app.get('io');
     if (io) io.to('display_' + req.params.id).emit('video_toggle', { enabled, videoUrl: hospital.waitingVideo?.url });
     res.json({ success: true, enabled, hospital });
@@ -210,6 +243,17 @@ router.post('/:id/staff', protect, authorize('admin', 'superadmin'), async (req,
     const existing = await User.findOne({ email });
     if (existing) return res.status(400).json({ success: false, message: 'Email already in use' });
     const user = await User.create({ name, email, password, phone, role, hospitalId: req.params.id });
+
+    // Audit log
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req, {
+      action: 'ADD_STAFF',
+      targetType: 'User',
+      targetId: user._id,
+      targetName: user.name,
+      newValues: { email, role, phone }
+    });
+
     res.status(201).json({ success: true, user: { ...user.toObject(), password: undefined } });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
@@ -221,6 +265,17 @@ router.put('/users/:userId/toggle', protect, authorize('admin', 'superadmin'), a
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
     user.isActive = !user.isActive;
     await user.save();
+
+    // Audit log
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req, {
+      action: 'TOGGLE_STAFF_STATUS',
+      targetType: 'User',
+      targetId: user._id,
+      targetName: user.name,
+      newValues: { isActive: user.isActive }
+    });
+
     res.json({ success: true, isActive: user.isActive });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
@@ -236,6 +291,15 @@ router.put('/users/:userId/reset-password', protect, authorize('admin', 'superad
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
     user.password = newPassword;
     await user.save();
+
+    // Audit log
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req, {
+      action: 'RESET_STAFF_PASSWORD',
+      targetType: 'User',
+      targetId: user._id,
+      targetName: user.name
+    });
 
     // SMS notification for password reset
     try {
@@ -312,6 +376,17 @@ router.put('/:id/slideshow/:itemId', protect, authorize('admin','superadmin'), a
       }},
       { new: true }
     );
+
+    // Audit log
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req, {
+      action: 'UPDATE_SLIDESHOW_ITEM',
+      targetType: 'Hospital',
+      targetId: req.params.id,
+      targetName: hospital.name,
+      metadata: { itemId: req.params.itemId }
+    });
+
     res.json({ success:true, slideshow: hospital.slideshow });
   } catch(err) { res.status(500).json({ success:false, message:err.message }); }
 });
@@ -331,6 +406,17 @@ router.post('/:id/slideshow/bulk-delete', protect, authorize('admin','superadmin
       { $pull: { slideshow: { _id: { $in: ids } } } },
       { new: true }
     );
+
+    // Audit log
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req, {
+      action: 'BULK_DELETE_SLIDESHOW',
+      targetType: 'Hospital',
+      targetId: req.params.id,
+      targetName: hospital.name,
+      metadata: { count: ids.length }
+    });
+
     res.json({ success:true, slideshow: hospital.slideshow });
   } catch(err) { res.status(500).json({ success:false, message:err.message }); }
 });
@@ -347,6 +433,17 @@ router.delete('/:id/slideshow/:itemId', protect, authorize('admin','superadmin')
       { $pull: { slideshow: { _id: req.params.itemId } } },
       { new: true }
     );
+
+    // Audit log
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req, {
+      action: 'DELETE_SLIDESHOW_ITEM',
+      targetType: 'Hospital',
+      targetId: req.params.id,
+      targetName: hospital.name,
+      metadata: { itemId: req.params.itemId }
+    });
+
     res.json({ success:true, slideshow: hospital.slideshow });
   } catch(err) { res.status(500).json({ success:false, message:err.message }); }
 });
@@ -419,6 +516,16 @@ router.put('/:id/announcement', protect, authorize('staff', 'admin', 'superadmin
 
     const hospital = await Hospital.findByIdAndUpdate(req.params.id, { announcement }, { new: true });
     if (!hospital) return res.status(404).json({ success: false, message: 'Hospital not found' });
+
+    // Audit log
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req, {
+      action: 'UPDATE_ANNOUNCEMENT',
+      targetType: 'Hospital',
+      targetId: req.params.id,
+      targetName: hospital.name,
+      newValues: { announcement }
+    });
 
     // Notify displays via socket
     const io = req.app.get('io');

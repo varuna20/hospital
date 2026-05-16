@@ -138,7 +138,10 @@ export default function AdminMedia() {
       .catch(() => {})
       .finally(() => setLoading(false));
   };
-  useEffect(() => { if (hid) reload(); }, [hid]);
+  useEffect(() => { 
+    if (hid) reload(); 
+    else if (!useAuth().loading) setLoading(false);
+  }, [hid, useAuth().loading]);
 
   // ── Upload logo ────────────────────────────────────────────────
   const uploadLogo = async () => {

@@ -107,6 +107,16 @@ router.post('/', protect, authorize('admin', 'superadmin'), async (req, res) => 
     user.doctorProfile = doctor._id;
     await user.save();
 
+    // Audit log
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req, {
+      action: 'CREATE_DOCTOR_PROFILE',
+      targetType: 'Doctor',
+      targetId: doctor._id,
+      targetName: doctor.name,
+      newValues: { email, specialization, phone }
+    });
+
     res.status(201).json({ success: true, doctor });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -183,6 +193,17 @@ router.post('/:id/photo', protect, authorize('admin', 'superadmin'),
     if (!req.file) return res.status(400).json({ success: false, message: 'No file' });
     const photoPath = `/uploads/doctors/${req.file.filename}`;
     const doctor = await Doctor.findByIdAndUpdate(req.params.id, { profileImage: photoPath }, { new: true });
+
+    // Audit log
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req, {
+      action: 'UPDATE_DOCTOR_PHOTO',
+      targetType: 'Doctor',
+      targetId: doctor._id,
+      targetName: doctor.name,
+      newValues: { photo: photoPath }
+    });
+
     res.json({ success: true, profileImage: photoPath, doctor });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -585,6 +606,16 @@ router.put('/:id/vacation', protect, authorize('doctor', 'admin', 'superadmin'),
     const doctor = await Doctor.findByIdAndUpdate(req.params.id, {
       vacation: { enabled, startDate, endDate, untilFurtherNotice, note }
     }, { new: true });
+
+    // Audit log
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req, {
+      action: 'UPDATE_DOCTOR_VACATION',
+      targetType: 'Doctor',
+      targetId: doctor._id,
+      targetName: doctor.name,
+      newValues: doctor.vacation
+    });
 
     res.json({ success: true, vacation: doctor.vacation });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }

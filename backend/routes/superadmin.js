@@ -62,6 +62,15 @@ router.post('/system/logo', logoUpload.single('logo'), async (req, res) => {
     settings.branding.logo = logoPath;
     await settings.save();
     
+    // Audit log
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req, {
+      action: 'UPDATE_SYSTEM_LOGO',
+      targetType: 'System',
+      targetName: 'Global Branding',
+      newValues: { logo: logoPath }
+    });
+
     res.json({ success: true, logo: logoPath });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
@@ -75,6 +84,15 @@ router.put('/system/branding', async (req, res) => {
     settings.branding = { ...settings.branding, ...req.body };
     await settings.save();
     
+    // Audit log
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req, {
+      action: 'UPDATE_SYSTEM_BRANDING',
+      targetType: 'System',
+      targetName: 'Global Branding',
+      newValues: req.body
+    });
+
     res.json({ success: true, branding: settings.branding });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
@@ -143,6 +161,17 @@ router.get('/hospitals', async (req, res) => {
 router.post('/hospitals', async (req, res) => {
   try {
     const hospital = await Hospital.create(req.body);
+
+    // Audit log
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req, {
+      action: 'CREATE_HOSPITAL',
+      targetType: 'Hospital',
+      targetId: hospital._id,
+      targetName: hospital.name,
+      newValues: req.body
+    });
+
     res.status(201).json({ success: true, hospital });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -152,12 +181,25 @@ router.post('/hospitals', async (req, res) => {
 // ── Update Hospital (theme, info, settings) ────────────────────────
 router.put('/hospitals/:id', async (req, res) => {
   try {
+    const hospitalBefore = await Hospital.findById(req.params.id);
     const hospital = await Hospital.findByIdAndUpdate(
       req.params.id,
       { $set: req.body },
       { new: true, runValidators: true }
     );
     if (!hospital) return res.status(404).json({ success: false, message: 'Hospital not found' });
+
+    // Audit log
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req, {
+      action: 'SUPER_UPDATE_HOSPITAL',
+      targetType: 'Hospital',
+      targetId: hospital._id,
+      targetName: hospital.name,
+      oldValues: hospitalBefore?.toObject(),
+      newValues: req.body
+    });
+
     res.json({ success: true, hospital });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -170,6 +212,17 @@ router.put('/hospitals/:id/toggle', async (req, res) => {
     const hospital = await Hospital.findById(req.params.id);
     hospital.isActive = !hospital.isActive;
     await hospital.save();
+
+    // Audit log
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req, {
+      action: 'TOGGLE_HOSPITAL_STATUS',
+      targetType: 'Hospital',
+      targetId: hospital._id,
+      targetName: hospital.name,
+      newValues: { isActive: hospital.isActive }
+    });
+
     res.json({ success: true, isActive: hospital.isActive });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -190,6 +243,16 @@ router.post('/hospitals/:id/admin', async (req, res) => {
       name, email, password, phone,
       role: 'admin',
       hospitalId: req.params.id
+    });
+
+    // Audit log
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req, {
+      action: 'ADD_HOSPITAL_ADMIN',
+      targetType: 'User',
+      targetId: admin._id,
+      targetName: admin.name,
+      metadata: { hospitalName: hospital.name }
     });
 
     res.status(201).json({ success: true, admin: { ...admin.toObject(), password: undefined } });

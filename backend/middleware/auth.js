@@ -12,11 +12,17 @@ const Patient  = require('../models/Patient');
 // ── Verify JWT token ───────────────────────────────────────────────
 const protect = async (req, res, next) => {
   try {
+    let token;
     const auth = req.headers.authorization;
-    if (!auth || !auth.startsWith('Bearer '))
+    if (auth && auth.startsWith('Bearer ')) {
+      token = auth.split(' ')[1];
+    } else if (req.query.token) {
+      token = req.query.token;
+    }
+
+    if (!token)
       return res.status(401).json({ success: false, message: 'Not authorised — no token' });
 
-    const token = auth.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     // Check User collection first (staff/doctor/admin/superadmin)
