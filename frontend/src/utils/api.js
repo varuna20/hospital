@@ -20,7 +20,8 @@ export const fUrl = (url) => {
   if (!url) return '';
   if (url.startsWith('http')) return url;
   // If it starts with /uploads, prepend the base domain (without /api)
-  return `${base}${url}`;
+  const cleanBase = base.endsWith('/api') ? base.slice(0, -4) : base;
+  return `${cleanBase}${url.startsWith('/') ? '' : '/'}${url}`;
 };
 
 export { base };
