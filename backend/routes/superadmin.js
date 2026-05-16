@@ -206,6 +206,41 @@ router.put('/hospitals/:id', async (req, res) => {
   }
 });
 
+// ── Update Hospital Logo ───────────────────────────────────────────
+const hospitalLogoStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, '../uploads/hospitals');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `hospital_${req.params.id}_${Date.now()}${path.extname(file.originalname)}`);
+  }
+});
+const hLogoUpload = multer({ storage: hospitalLogoStorage });
+
+router.put('/hospitals/:id/logo', hLogoUpload.single('logo'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
+    const logoPath = '/uploads/hospitals/' + req.file.filename;
+
+    const hospital = await Hospital.findByIdAndUpdate(req.params.id, { logo: logoPath }, { new: true });
+    if (!hospital) return res.status(404).json({ success: false, message: 'Hospital not found' });
+
+    // Audit log
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req, {
+      action: 'UPDATE_HOSPITAL_LOGO',
+      targetType: 'Hospital',
+      targetId: hospital._id,
+      targetName: hospital.name,
+      newValues: { logo: logoPath }
+    });
+
+    res.json({ success: true, logo: logoPath });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
 // ── Toggle Hospital Active ─────────────────────────────────────────
 router.put('/hospitals/:id/toggle', async (req, res) => {
   try {
@@ -392,6 +427,84 @@ router.get('/message-logs', async (req, res) => {
     const total = await MessageLog.countDocuments(query);
 
     res.json({ success: true, logs, total, page: Number(page), limit: Number(limit) });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── List All Patients (Cross-Hospital) ──────────────────────────
+router.get('/patients', async (req, res) => {
+  try {
+    const { search = '', page = 1, limit = 50 } = req.query;
+    const query = {};
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { phone: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { nic: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const patients = await Patient.find(query)
+      .sort({ createdAt: -1 })
+      .skip((Number(page) - 1) * Number(limit))
+      .limit(Number(limit))
+      .populate('hospitalId', 'name shortName');
+
+    const total = await Patient.countDocuments(query);
+
+    res.json({ success: true, patients, total, page: Number(page), limit: Number(limit) });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── Update Patient (Super Admin) ──────────────────────────────────
+router.put('/patients/:id', async (req, res) => {
+  try {
+    const patientBefore = await Patient.findById(req.params.id);
+    const patient = await Patient.findByIdAndUpdate(
+      req.params.id,
+      { $set: req.body },
+      { new: true, runValidators: true }
+    );
+    if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });
+
+    // Audit log
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req, {
+      action: 'SUPER_UPDATE_PATIENT',
+      targetType: 'Patient',
+      targetId: patient._id,
+      targetName: patient.name,
+      oldValues: patientBefore?.toObject(),
+      newValues: req.body
+    });
+
+    res.json({ success: true, patient });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── Delete Patient (Super Admin) ──────────────────────────────────
+router.delete('/patients/:id', async (req, res) => {
+  try {
+    const patient = await Patient.findByIdAndDelete(req.params.id);
+    if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });
+
+    // Audit log
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req, {
+      action: 'SUPER_DELETE_PATIENT',
+      targetType: 'Patient',
+      targetId: patient._id,
+      targetName: patient.name,
+      oldValues: patient.toObject()
+    });
+
+    res.json({ success: true, message: 'Patient deleted successfully' });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

@@ -321,6 +321,21 @@ router.put('/:id/arrival', protect, authorize('staff', 'admin', 'superadmin'), a
           }).catch(() => {});
         }
       }
+    } else {
+      // If doctor LEFT, send session summary to doctor
+      const hospital = await Hospital.findById(doctor.hospitalId);
+      if (hospital?.whatsapp?.enabled) {
+        const today = moment().startOf('day').toDate();
+        const todayEnd = moment().endOf('day').toDate();
+        const appointments = await Appointment
+          .find({ doctor: req.params.id, appointmentDate: { $gte: today, $lte: todayEnd } })
+          .populate('patient', 'name phone');
+        
+        if (appointments.length > 0) {
+          sendDoctorSessionSummary(hospital, doctor, appointments).catch(e => console.error('Summary error:', e));
+          await Doctor.findByIdAndUpdate(req.params.id, { 'todayStatus.whatsappSummarysent': true });
+        }
+      }
     }
 
     const io = req.app.get('io');

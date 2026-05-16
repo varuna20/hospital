@@ -11,6 +11,7 @@ const NAV = {
     { to: '/super/subscriptions', label: 'Subscriptions',  icon: '📦' },
     { to: '/super/system',        label: 'System',         icon: '⚙' },
     { to: '/super/logs',          label: 'Message Logs',   icon: '📝' },
+    { to: '/super/patients',      label: 'Patients',       icon: '👥' },
     { to: '/super/links',         label: 'Hospital Links', icon: '🔗' },
   ],
   admin: [
@@ -20,12 +21,14 @@ const NAV = {
     { to: '/admin/revenue',  label: 'Revenue',   icon: '💰' },
     { to: '/admin/media',    label: 'Media',     icon: '🎥' },
     { to: '/admin/drugs',    label: 'Drug Library',  icon: '💊' },
+    { to: '/admin/refund',   label: 'Refunds',   icon: '💸' },
     { to: '/admin/settings', label: 'Settings',  icon: '⚙' },
   ],
   staff: [
     { to: '/staff',          label: 'Dashboard', icon: '⬡', end: true },
     { to: '/staff/queue',    label: 'Queue',     icon: '🔢' },
     { to: '/staff/booking',  label: 'Booking',   icon: '📅' },
+    { to: '/staff/refund',   label: 'Refunds',   icon: '💸' },
   ],
   doctor: [
     { to: '/doctor',                 label: 'Dashboard',     icon: '⬡', end: true },

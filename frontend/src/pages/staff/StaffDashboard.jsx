@@ -98,10 +98,17 @@ export default function StaffDashboard() {
                 <div><p className="font-semibold text-white text-sm">{d.name}</p>
                   <p className="text-xs" style={{ color:'var(--color-primary)' }}>{d.specialization}</p></div>
               </div>
-              <button onClick={()=>toggleArrival(d._id,!d.todayStatus?.isArrived)}
-                className="text-xs px-3 py-1.5 rounded-lg"
-                style={{ background: d.todayStatus?.isArrived?'rgba(16,185,129,0.15)':'rgba(245,158,11,0.15)', color: d.todayStatus?.isArrived?'#10b981':'#f59e0b' }}>
-                {d.todayStatus?.isArrived?'✓ Arrived':'Mark Arrived'}
+              <button onClick={() => {
+                if (d.todayStatus?.isArrived && !window.confirm(`Mark Dr. ${d.name} as Left? This will send them a session summary.`)) return;
+                toggleArrival(d._id, !d.todayStatus?.isArrived);
+              }}
+                className="text-xs px-3 py-1.5 rounded-lg transition-all font-medium"
+                style={{ 
+                  background: d.todayStatus?.isArrived ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)', 
+                  color: d.todayStatus?.isArrived ? '#ef4444' : '#f59e0b',
+                  border: `1px solid ${d.todayStatus?.isArrived ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)'}`
+                }}>
+                {d.todayStatus?.isArrived ? '🚪 Doctor Left' : 'Mark Arrived'}
               </button>
             </div>
             {/* Session times */}

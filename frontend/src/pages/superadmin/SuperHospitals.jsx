@@ -1,6 +1,6 @@
 import HospitalManager from './HospitalManager';
 import React, { useState, useEffect } from 'react';
-import api from '../../utils/api';
+import api, { fUrl } from '../../utils/api';
 import toast from 'react-hot-toast';
 
 const COLORS = ['#0d9488','#6366f1','#ec4899','#f59e0b','#10b981','#0ea5e9','#ef4444','#8b5cf6','#f97316','#06b6d4'];
@@ -121,6 +121,36 @@ function HospitalForm({ hospital: editH, onSave, onCancel }) {
               <input type="number" className="input" value={info.payment?.defaultHospitalCharge||0} onChange={e=>setInfo(p=>({...p,payment:{...p.payment,defaultHospitalCharge:Number(e.target.value)}}))} /></div>
             <div><label className="label">Currency Symbol</label>
               <input className="input" value={info.payment?.currencySymbol||'Rs.'} onChange={e=>setInfo(p=>({...p,payment:{...p.payment,currencySymbol:e.target.value}}))} /></div>
+            
+            <div className="md:col-span-2">
+              <label className="label">Hospital Logo</label>
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-xl border-2 border-dashed border-white/10 flex items-center justify-center overflow-hidden bg-white/5">
+                  {editH?.logo ? <img src={fUrl(editH.logo)} className="w-full h-full object-cover" /> : <span className="text-2xl opacity-20">🏥</span>}
+                </div>
+                <input type="file" accept="image/*" className="text-xs text-white/50 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20" 
+                  onChange={async (e) => {
+                    const file = e.target.files[0];
+                    if(!file || !savedId) { 
+                      if(!savedId) toast.error('Save hospital info first before uploading logo');
+                      return; 
+                    }
+                    const formData = new FormData();
+                    formData.append('logo', file);
+                    try {
+                      toast.loading('Uploading logo...');
+                      await api.put(`/superadmin/hospitals/${savedId}/logo`, formData);
+                      toast.dismiss();
+                      toast.success('Logo uploaded!');
+                      onSave(); // Refresh
+                    } catch(err) {
+                      toast.dismiss();
+                      toast.error('Logo upload failed');
+                    }
+                  }}
+                />
+              </div>
+            </div>
           </div>
           {isEdit&&(
             <div className="mt-4 pt-4 border-t space-y-4" style={{ borderColor:'var(--color-border)' }}>
@@ -270,7 +300,13 @@ export default function SuperHospitals() {
           <div key={h._id} className="card overflow-hidden">
             <div className="h-1.5 -mx-5 -mt-5 mb-4 rounded-t-xl" style={{ background:h.theme?.primary||'#0d9488' }} />
             <div className="flex items-start gap-3 mb-3">
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center font-bold text-white flex-shrink-0" style={{ background:h.theme?.primary||'#0d9488' }}>{h.name.charAt(0)}</div>
+              {h.logo ? (
+                <div className="w-11 h-11 rounded-xl overflow-hidden border border-white/10 flex-shrink-0">
+                  <img src={fUrl(h.logo)} alt={h.name} className="w-full h-full object-cover" onError={(e)=>{e.target.style.display='none'; e.target.parentElement.innerHTML=`<div class="w-full h-full flex items-center justify-center font-bold text-white" style="background:${h.theme?.primary||'#0d9488'}">${h.name.charAt(0)}</div>`}} />
+                </div>
+              ) : (
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center font-bold text-white flex-shrink-0" style={{ background:h.theme?.primary||'#0d9488' }}>{h.name.charAt(0)}</div>
+              )}
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-white truncate">{h.name}</p>
                 <p className="text-xs" style={{ color:'var(--color-text-muted)' }}>{h.city} · <span className="capitalize">{h.subscriptionPlan}</span></p>

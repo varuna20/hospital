@@ -25,6 +25,7 @@ import SuperSubscriptions from './pages/superadmin/SuperSubscriptions';
 import SuperHospitalLinks from './pages/superadmin/SuperHospitalLinks';
 import SuperSystem        from './pages/superadmin/SuperSystem';
 import SuperLogs          from './pages/superadmin/SuperLogs';
+import SuperPatients      from './pages/superadmin/SuperPatients';
 
 // Admin
 import AdminLayout        from './pages/admin/AdminLayout';
@@ -41,6 +42,7 @@ import StaffLayout        from './pages/staff/StaffLayout';
 import StaffDashboard     from './pages/staff/StaffDashboard';
 import StaffQueue         from './pages/staff/StaffQueue';
 import StaffBooking       from './pages/staff/StaffBooking';
+import StaffRefund        from './pages/staff/StaffRefund';
 
 // Doctor
 import DoctorLayout       from './pages/doctor/DoctorLayout';
@@ -96,6 +98,7 @@ export default function App() {
                 <Route path="subscriptions"  element={<SuperSubscriptions />} />
                 <Route path="system"         element={<SuperSystem />} />
                 <Route path="logs"           element={<SuperLogs />} />
+                <Route path="patients"       element={<SuperPatients />} />
                 <Route path="profile"        element={<ProfilePage />} />
               </Route>
 
@@ -108,6 +111,7 @@ export default function App() {
                 <Route path="settings" element={<AdminSettings />} />
                 <Route path="media"    element={<AdminMedia />} />
                 <Route path="drugs"    element={<DrugLibrary />} />
+                <Route path="refund"   element={<StaffRefund />} />
                 <Route path="profile"  element={<ProfilePage />} />
               </Route>
 
@@ -116,6 +120,7 @@ export default function App() {
                 <Route index          element={<StaffDashboard />} />
                 <Route path="queue"   element={<StaffQueue />} />
                 <Route path="booking" element={<StaffBooking />} />
+                <Route path="refund"  element={<StaffRefund />} />
                 <Route path="profile" element={<ProfilePage />} />
               </Route>
 
