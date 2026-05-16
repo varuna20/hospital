@@ -4,6 +4,7 @@ dist/
 *.log
 .DS_Store
 backups/
-uploads/
+# uploads/ (commented out to allow pushing media to production)
+# uploads/
 node_quickstart/
 scratch/
