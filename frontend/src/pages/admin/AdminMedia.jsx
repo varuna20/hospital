@@ -409,7 +409,7 @@ export default function AdminMedia() {
             )}
           </div>
           <p className="text-xs mb-4" style={{ color: 'var(--color-text-muted)' }}>
-            Plays on display screen while doctor hasn't arrived. Auto-stops when doctor is marked arrived.
+            Plays continuously on the display screen. If disabled, the slideshow will play instead.
           </p>
           {vid?.url ? (
             <div className="rounded-xl overflow-hidden mb-4" style={{ background: 'var(--color-surface2)' }}>

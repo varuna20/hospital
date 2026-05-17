@@ -138,7 +138,7 @@ function speakNext(number, roomName) {
 
 function DisplayMedia({ hospital, isArrived }) {
   const vid = hospital?.waitingVideo;
-  if (!isArrived && vid?.enabled && vid?.url) {
+  if (vid?.enabled && vid?.url) {
     return (
       <video src={fUrl(vid.url)} style={{ width:'100%', height:'100%', objectFit:'cover' }} autoPlay muted loop playsInline />
     );

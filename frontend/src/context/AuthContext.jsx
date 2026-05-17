@@ -62,6 +62,42 @@ export function AuthProvider({ children }) {
     window.location.href = '/login';
   };
 
+  useEffect(() => {
+    if (!user || user.role === 'patient') return;
+
+    // Admin/Superadmin: 5 mins, Others (Staff/Doctor): 6 hours
+    const timeoutMs = (user.role === 'admin' || user.role === 'superadmin') 
+      ? 5 * 60 * 1000 
+      : 6 * 60 * 60 * 1000;
+
+    let timeoutId;
+    let lastActivity = Date.now();
+
+    const resetTimer = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        logout();
+      }, timeoutMs);
+    };
+
+    const handleActivity = () => {
+      const now = Date.now();
+      if (now - lastActivity > 1000) { // Throttle
+        lastActivity = now;
+        resetTimer();
+      }
+    };
+
+    resetTimer();
+    const events = ['mousemove', 'keydown', 'scroll', 'click', 'touchstart'];
+    events.forEach(e => window.addEventListener(e, handleActivity));
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      events.forEach(e => window.removeEventListener(e, handleActivity));
+    };
+  }, [user]);
+
   const updateHospital = (newHospitalData) => {
     if (!user) return;
     const updatedUser = { ...user, hospital: newHospitalData };

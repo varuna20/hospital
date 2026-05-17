@@ -16,8 +16,7 @@ import ChevFooter from '../../components/ChevFooter';
 
 function DisplayMedia({ hospital, doctors }) {
   const vid = hospital?.waitingVideo;
-  const anyArrived = doctors?.some(d => d.todayStatus?.isArrived);
-  if (!anyArrived && vid?.enabled && vid?.url) {
+  if (vid?.enabled && vid?.url) {
     return (
       <video src={fUrl(vid.url)} style={{ width:'100%', height:'100%', objectFit:'cover' }} autoPlay muted loop playsInline />
     );
