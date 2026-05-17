@@ -80,6 +80,12 @@ export default function AdminRevenue() {
   const planFee = billingCycle === 'annual' ? baseMonthly * 12 : baseMonthly;
   const totalDue = commissionAmt + planFee; 
 
+  // PayPal does NOT support LKR natively. We must convert to USD for checkout.
+  const isLKR = currencyCode.toUpperCase() === 'LKR';
+  const paypalCurrency = isLKR ? 'USD' : currencyCode;
+  const exchangeRate = 300; // Approx 1 USD = 300 LKR
+  const paypalAmount = isLKR ? (totalDue / exchangeRate).toFixed(2) : totalDue.toFixed(2);
+
   const logPayment = async (details) => {
     try {
       await api.post('/subscriptions/payments', {
@@ -128,21 +134,22 @@ export default function AdminRevenue() {
               <span className="text-xs px-2 py-0.5 rounded-md bg-white/10 font-bold">Base: {fMoney(planFee, sym)}</span>
               <span className="text-xs px-2 py-0.5 rounded-md bg-white/10 font-bold">Comm ({commPct}%): {fMoney(commissionAmt, sym)}</span>
             </div>
+            {isLKR && <p className="text-[10px] text-accent mt-2">Note: LKR will be converted to USD for PayPal checkout (~$1 = 300 Rs)</p>}
           </div>
           <div className="flex flex-col items-end gap-3 mt-4 md:mt-0">
             <div className="text-right">
               <p className="text-xs text-muted uppercase font-bold tracking-wider mb-1">Amount Due</p>
-              <p className="text-2xl font-bold text-accent">{fMoney(totalDue, sym)}</p>
+              <p className="text-2xl font-bold text-accent">{fMoney(totalDue, sym)} {isLKR && <span className="text-sm text-muted">(${paypalAmount})</span>}</p>
             </div>
             {systemSettings?.payment?.paypalClientId ? (
               <div className="w-[200px] mt-2">
-                <PayPalScriptProvider options={{ "client-id": systemSettings.payment.paypalClientId, currency: currencyCode }}>
+                <PayPalScriptProvider options={{ "client-id": systemSettings.payment.paypalClientId, currency: paypalCurrency }}>
                   <PayPalButtons 
                     style={{ layout: "horizontal", height: 48, color: 'blue' }}
                     createOrder={(data, actions) => {
                       return actions.order.create({
                         purchase_units: [{
-                          amount: { value: (totalDue > 0 ? totalDue : 1).toString() },
+                          amount: { value: (parseFloat(paypalAmount) > 0 ? paypalAmount : '1.00') },
                           description: `Subscription & Comm (${MONTHS[month-1]} ${year})`
                         }],
                       });
@@ -163,9 +170,9 @@ export default function AdminRevenue() {
               <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_blank" onSubmit={() => { setTimeout(() => logPayment({ method: 'redirect_form' }), 5000) }}>
                 <input type="hidden" name="cmd" value="_xclick" />
                 <input type="hidden" name="business" value={paypalEmail} />
-                <input type="hidden" name="currency_code" value={currencyCode} />
+                <input type="hidden" name="currency_code" value={paypalCurrency} />
                 <input type="hidden" name="item_name" value={`Hospital Subscription & Commission (${MONTHS[month-1]} ${year})`} />
-                <input type="hidden" name="amount" value={totalDue > 0 ? totalDue : 1} />
+                <input type="hidden" name="amount" value={parseFloat(paypalAmount) > 0 ? paypalAmount : '1.00'} />
                 <input type="hidden" name="return" value={window.location.href} />
                 <button type="submit" disabled={totalDue <= 0 && hospital?.subscriptionPlan === 'trial'} 
                   className={`btn-primary flex items-center gap-2 h-12 px-6 mt-2 ${totalDue <= 0 ? 'opacity-50 cursor-not-allowed' : ''}`}>
