@@ -22,6 +22,46 @@ router.get('/branding', async (req, res) => {
 
 router.use(protect, superAdminOnly);
 
+// System Health & Capacity metrics
+router.get('/health', async (req, res) => {
+  try {
+    const os = require('os');
+    const mongoose = require('mongoose');
+    
+    // DB Stats
+    let dbStats = {};
+    if (mongoose.connection.readyState === 1) {
+      dbStats = await mongoose.connection.db.stats();
+    }
+
+    const health = {
+      status: 'online',
+      uptime: process.uptime(),
+      memory: {
+        total: os.totalmem(),
+        free: os.freemem(),
+        process: process.memoryUsage()
+      },
+      cpu: {
+        cores: os.cpus().length,
+        loadavg: os.loadavg() // [1, 5, 15] minute load averages
+      },
+      database: {
+        status: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+        collections: dbStats.collections || 0,
+        objects: dbStats.objects || 0,
+        dataSize: dbStats.dataSize || 0,
+        storageSize: dbStats.storageSize || 0,
+        indexes: dbStats.indexes || 0
+      }
+    };
+    
+    res.json({ success: true, health });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // Get settings
 router.get('/settings', async (req, res) => {
   try {

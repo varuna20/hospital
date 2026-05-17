@@ -37,6 +37,7 @@ export default function SuperSystem() {
   const [testSMS, setTestSMS] = useState('');
   const [testing, setTesting] = useState({ email:false, sms:false });
   const [backups, setBackups] = useState([]);
+  const [health, setHealth] = useState(null);
   const [backing, setBacking] = useState(false);
   const [restoring, setRestoring] = useState('');
   const [activeTab, setActiveTab] = useState('branding');
@@ -49,16 +50,25 @@ export default function SuperSystem() {
   const loadAll = () => {
     Promise.all([
       api.get('/system/settings'),
-      api.get('/backup/list').catch(()=>({ data:{ backups:[] } }))
-    ]).then(([s, b]) => {
+      api.get('/backup/list').catch(()=>({ data:{ backups:[] } })),
+      api.get('/system/health').catch(()=>({ data:{ health:null } }))
+    ]).then(([s, b, h]) => {
       setSettings(s.data.settings);
       setBackups(b.data.backups || []);
+      setHealth(h.data.health || null);
     }).catch(()=>{}).finally(()=>setLoading(false));
   };
 
   useEffect(()=>{ 
     loadAll(); 
-  },[]);
+    // Refresh health metrics every 15 seconds if tab is active
+    const interval = setInterval(() => {
+      if (activeTab === 'capacity') {
+        api.get('/system/health').then(r => setHealth(r.data.health)).catch(()=>{});
+      }
+    }, 15000);
+    return () => clearInterval(interval);
+  },[activeTab]);
 
   // Update button states based on global progress
   useEffect(() => {
@@ -172,6 +182,20 @@ export default function SuperSystem() {
     finally { setUploadingLogo(false); }
   };
 
+  const formatBytes = (bytes) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024, dm = 2, sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+  };
+
+  const formatUptime = (seconds) => {
+    const d = Math.floor(seconds / (3600*24));
+    const h = Math.floor(seconds % (3600*24) / 3600);
+    const m = Math.floor(seconds % 3600 / 60);
+    return `${d}d ${h}h ${m}m`;
+  };
+
   if (loading) return <div className="text-center py-12" style={{ color:'var(--color-text-muted)' }}>Loading…</div>;
   if (!settings) return null;
 
@@ -181,6 +205,7 @@ export default function SuperSystem() {
     { id:'sms',      label:'📱 SMS' },
     { id:'backup',   label:'💾 Backup' },
     { id:'security', label:'🔒 Security' },
+    { id:'capacity', label:'📈 Capacity & Health' },
   ];
 
   return (
@@ -526,6 +551,102 @@ export default function SuperSystem() {
           </div>
         </div>
       )}
+
+      {/* CAPACITY & HEALTH TAB */}
+      {activeTab==='capacity'&&(
+        <div className="card max-w-4xl">
+          <h3 className="section-title flex justify-between items-center mb-6">
+            <span>System Capacity & Health</span>
+            {health && (
+              <span className="text-xs font-medium px-2 py-1 rounded bg-green-500/10 text-green-500 flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                {health.status.toUpperCase()}
+              </span>
+            )}
+          </h3>
+          
+          {!health ? (
+            <div className="text-center py-8 text-sm" style={{ color:'var(--color-text-muted)' }}>Fetching telemetry data...</div>
+          ) : (
+            <div className="space-y-6">
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* SERVER INFO */}
+                <div className="p-4 rounded-xl border" style={{ borderColor:'var(--color-border)', background:'var(--color-surface)' }}>
+                  <h4 className="text-sm font-bold mb-3" style={{ color:'var(--color-primary)' }}>Server Environment</h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span style={{ color:'var(--color-text-muted)' }}>Uptime</span>
+                      <span className="font-mono">{formatUptime(health.uptime)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span style={{ color:'var(--color-text-muted)' }}>CPU Load (1, 5, 15m)</span>
+                      <span className="font-mono">{health.cpu.loadavg.map(l => l.toFixed(2)).join(' · ')}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span style={{ color:'var(--color-text-muted)' }}>CPU Cores</span>
+                      <span className="font-mono">{health.cpu.cores} Cores</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* MEMORY INFO */}
+                <div className="p-4 rounded-xl border" style={{ borderColor:'var(--color-border)', background:'var(--color-surface)' }}>
+                  <h4 className="text-sm font-bold mb-3" style={{ color:'var(--color-primary)' }}>Memory Utilization</h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span style={{ color:'var(--color-text-muted)' }}>Total Memory</span>
+                      <span className="font-mono">{formatBytes(health.memory.total)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span style={{ color:'var(--color-text-muted)' }}>Free Memory</span>
+                      <span className="font-mono">{formatBytes(health.memory.free)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span style={{ color:'var(--color-text-muted)' }}>Node Process Heap</span>
+                      <span className="font-mono">{formatBytes(health.memory.process.heapUsed)} / {formatBytes(health.memory.process.heapTotal)}</span>
+                    </div>
+                    
+                    <div className="w-full rounded-full h-1.5 mt-2" style={{ background:'var(--color-border)' }}>
+                      <div className="h-full rounded-full" 
+                        style={{ background:'var(--color-primary)', width: `${Math.min(100, Math.round(((health.memory.total - health.memory.free) / health.memory.total) * 100))}%` }} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* DATABASE INFO */}
+                <div className="p-4 rounded-xl border md:col-span-2" style={{ borderColor:'var(--color-border)', background:'var(--color-surface)' }}>
+                  <h4 className="text-sm font-bold mb-3 flex items-center justify-between" style={{ color:'var(--color-primary)' }}>
+                    <span>Database Engine</span>
+                    <span className="text-xs" style={{ color: health.database.status==='connected'?'#10b981':'#ef4444' }}>
+                      {health.database.status.toUpperCase()}
+                    </span>
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="p-3 rounded text-center" style={{ background:'rgba(var(--color-primary-rgb),0.05)' }}>
+                      <p className="text-xs mb-1" style={{ color:'var(--color-text-muted)' }}>Collections</p>
+                      <p className="text-lg font-mono font-bold" style={{ color:'var(--color-text)' }}>{health.database.collections}</p>
+                    </div>
+                    <div className="p-3 rounded text-center" style={{ background:'rgba(var(--color-primary-rgb),0.05)' }}>
+                      <p className="text-xs mb-1" style={{ color:'var(--color-text-muted)' }}>Documents</p>
+                      <p className="text-lg font-mono font-bold" style={{ color:'var(--color-text)' }}>{health.database.objects.toLocaleString()}</p>
+                    </div>
+                    <div className="p-3 rounded text-center" style={{ background:'rgba(var(--color-primary-rgb),0.05)' }}>
+                      <p className="text-xs mb-1" style={{ color:'var(--color-text-muted)' }}>Data Size</p>
+                      <p className="text-lg font-mono font-bold" style={{ color:'var(--color-text)' }}>{formatBytes(health.database.dataSize)}</p>
+                    </div>
+                    <div className="p-3 rounded text-center" style={{ background:'rgba(var(--color-primary-rgb),0.05)' }}>
+                      <p className="text-xs mb-1" style={{ color:'var(--color-text-muted)' }}>Indexes</p>
+                      <p className="text-lg font-mono font-bold" style={{ color:'var(--color-text)' }}>{health.database.indexes}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
     </div>
   );
 }
