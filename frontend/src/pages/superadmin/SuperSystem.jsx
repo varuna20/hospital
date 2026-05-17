@@ -119,7 +119,6 @@ export default function SuperSystem() {
   const triggerBackup = async () => {
     setBacking(true);
     backingRef.current = true;
-    setBackupProgress({ percent: 0, message: 'Initializing...' });
     try {
       const { data } = await api.post('/backup/now');
       toast.success(data.message || 'Backup started');
@@ -138,21 +137,18 @@ export default function SuperSystem() {
       toast.error(e.response?.data?.message||'Backup failed'); 
       setBacking(false);
       backingRef.current = false;
-      setBackupProgress(null);
     }
   };
 
   const restoreBackup = async (filename) => {
     if (!window.confirm(`⚠️ RESTORE from "${filename}"?\n\nThis will REPLACE ALL current data. This cannot be undone.\n\nAre you sure?`)) return;
     setRestoring(filename);
-    setRestoreProgress({ percent: 0, message: 'Connecting...' });
     try {
       const { data } = await api.post('/backup/restore/' + filename);
       toast.success(data.message);
     } catch(e){ 
       toast.error(e.response?.data?.message||'Restore failed'); 
       setRestoring('');
-      setRestoreProgress(null);
     }
   };
 
