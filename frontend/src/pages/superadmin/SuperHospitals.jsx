@@ -119,6 +119,14 @@ function HospitalForm({ hospital: editH, onSave, onCancel }) {
             </div>
             <div><label className="label">Default Hospital Charge</label>
               <input type="number" className="input" value={info.payment?.defaultHospitalCharge||0} onChange={e=>setInfo(p=>({...p,payment:{...p.payment,defaultHospitalCharge:Number(e.target.value)}}))} /></div>
+            
+            <div><label className="label">Payment Currency</label>
+              <select className="input" value={info.payment?.currency||'LKR'} onChange={e=>setInfo(p=>({...p,payment:{...p.payment,currency:e.target.value}}))}>
+                <option value="LKR">LKR (Sri Lankan Rupee)</option>
+                <option value="USD">USD (US Dollar)</option>
+              </select>
+            </div>
+
             <div><label className="label">Currency Symbol</label>
               <input className="input" value={info.payment?.currencySymbol||'Rs.'} onChange={e=>setInfo(p=>({...p,payment:{...p.payment,currencySymbol:e.target.value}}))} /></div>
             

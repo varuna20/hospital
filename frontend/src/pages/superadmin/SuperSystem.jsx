@@ -306,9 +306,9 @@ export default function SuperSystem() {
               <p className="text-[10px] text-white/40 mt-1">If empty, standard HTML form checkout will be used with the email address.</p>
             </div>
             <div>
-              <label className="label">Currency Code</label>
-              <input className="input max-w-[120px]" placeholder="USD, LKR, etc." 
-                     value={settings.payment?.currency || 'USD'} onChange={e=>upd('payment.currency', e.target.value)} />
+              <p className="text-[12px] text-accent p-3 bg-accent/10 rounded-lg border border-accent/20">
+                <strong>Note:</strong> Payment currency is now managed per-hospital. You can set the checkout currency (LKR or USD) for each hospital by editing the hospital under the <strong>Hospitals</strong> tab. The payment will be automatically requested in the respective hospital's configured currency.
+              </p>
             </div>
           </div>
           <button onClick={save} disabled={saving} className="btn-primary w-full">{saving?'Saving…':'Save Payment Details'}</button>

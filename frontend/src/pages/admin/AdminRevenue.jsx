@@ -15,7 +15,7 @@ export default function AdminRevenue() {
   const { hospital, systemSettings } = useAuth();
   const sym = hospital?.payment?.currencySymbol || 'Rs.';
   const paypalEmail = systemSettings?.payment?.paypalEmail || 'varuna.20@gmail.com';
-  const currencyCode = systemSettings?.payment?.currency || 'USD';
+  const currencyCode = hospital?.payment?.currency || 'LKR';
 
   const [summary,   setSummary]   = useState(null);
   const [report,    setReport]    = useState(null);
