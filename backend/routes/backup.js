@@ -158,10 +158,18 @@ router.post('/restore/:filename', async (req, res) => {
         console.log('📂 Restoring media files...');
         if (io) io.emit('restore_progress', { percent: 15, message: 'Extracting media assets (this may take a minute)...' });
         
-        // Extract everything starting with uploads/ to the root backend dir
-        zip.extractAllTo(path.join(__dirname, '../'), true);
+        // Yield event loop so the 15% socket message actually flushes to the client
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Extract only the uploads directory
+        zipEntries.forEach(entry => {
+          if (entry.entryName.startsWith('uploads/')) {
+            zip.extractEntryTo(entry, path.join(__dirname, '../'), true, true);
+          }
+        });
         
         if (io) io.emit('restore_progress', { percent: 30, message: 'Media assets recovered. Reconstructing database...' });
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
     } else {
       // Legacy JSON backup
