@@ -6,6 +6,8 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   AreaChart, Area, PieChart, Pie, Cell 
 } from 'recharts';
+import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
+import toast from 'react-hot-toast';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#f87171', '#06b6d4', '#a855f7', '#ec4899'];
 
@@ -106,18 +108,46 @@ export default function AdminRevenue() {
               <p className="text-xs text-muted uppercase font-bold tracking-wider mb-1">Amount Due</p>
               <p className="text-2xl font-bold text-accent">{fMoney(totalDue, sym)}</p>
             </div>
-            <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_blank">
-              <input type="hidden" name="cmd" value="_xclick" />
-              <input type="hidden" name="business" value={paypalEmail} />
-              <input type="hidden" name="currency_code" value={currencyCode} />
-              <input type="hidden" name="item_name" value={`Hospital Subscription & Commission (${MONTHS[month-1]} ${year})`} />
-              <input type="hidden" name="amount" value={totalDue > 0 ? totalDue : 1} /> {/* PayPal requires > 0 */}
-              <input type="hidden" name="return" value={window.location.href} />
-              <button type="submit" disabled={totalDue <= 0 && hospital?.subscriptionPlan === 'trial'} 
-                className={`btn-primary flex items-center gap-2 h-12 px-6 ${totalDue <= 0 ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                <span className="text-xl">💳</span> Pay via PayPal
-              </button>
-            </form>
+            {systemSettings?.payment?.paypalClientId ? (
+              <div className="w-[200px]">
+                <PayPalScriptProvider options={{ "client-id": systemSettings.payment.paypalClientId, currency: currencyCode }}>
+                  <PayPalButtons 
+                    style={{ layout: "horizontal", height: 48, color: 'blue' }}
+                    createOrder={(data, actions) => {
+                      return actions.order.create({
+                        purchase_units: [
+                          {
+                            amount: { value: (totalDue > 0 ? totalDue : 1).toString() },
+                            description: `Subscription & Comm (${MONTHS[month-1]} ${year})`
+                          },
+                        ],
+                      });
+                    }}
+                    onApprove={async (data, actions) => {
+                      await actions.order.capture();
+                      toast.success('Payment completed successfully!');
+                    }}
+                    onError={(err) => {
+                      toast.error('PayPal Checkout failed. Check your PayPal config.');
+                      console.error(err);
+                    }}
+                  />
+                </PayPalScriptProvider>
+              </div>
+            ) : (
+              <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_blank">
+                <input type="hidden" name="cmd" value="_xclick" />
+                <input type="hidden" name="business" value={paypalEmail} />
+                <input type="hidden" name="currency_code" value={currencyCode} />
+                <input type="hidden" name="item_name" value={`Hospital Subscription & Commission (${MONTHS[month-1]} ${year})`} />
+                <input type="hidden" name="amount" value={totalDue > 0 ? totalDue : 1} />
+                <input type="hidden" name="return" value={window.location.href} />
+                <button type="submit" disabled={totalDue <= 0 && hospital?.subscriptionPlan === 'trial'} 
+                  className={`btn-primary flex items-center gap-2 h-12 px-6 ${totalDue <= 0 ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                  <span className="text-xl">💳</span> Pay via PayPal
+                </button>
+              </form>
+            )}
           </div>
         </div>
       </div>
