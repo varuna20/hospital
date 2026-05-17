@@ -58,13 +58,28 @@ export default function StaffDashboard() {
       <div className="flex flex-wrap items-center justify-between mb-6 gap-3">
         <div><h1 className="page-title">Reception Desk</h1>
           <p className="text-sm" style={{ color:'var(--color-text-muted)' }}>Live queue overview — {hospital?.name}</p></div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded-xl border border-white/10 hidden md:flex">
+            <div className="flex items-center pl-2 text-xs text-white/50 whitespace-nowrap">
+              🔗 Booking Link:
+            </div>
+            <input readOnly value={`${window.location.origin}/book/${hospital?.slug}`} 
+                   className="bg-transparent border-none text-xs text-primary font-bold outline-none w-[180px] px-2 truncate selection:bg-primary/30" 
+                   onClick={e => e.target.select()} />
+            <button onClick={() => {
+              const url = `${window.location.origin}/book/${hospital?.slug}`;
+              navigator.clipboard.writeText(url);
+              toast.success('Booking link copied!');
+            }} className="btn-primary text-xs px-3 py-1.5 whitespace-nowrap">
+              Copy
+            </button>
+          </div>
           <button onClick={() => {
             const url = `${window.location.origin}/book/${hospital?.slug}`;
             navigator.clipboard.writeText(url);
             toast.success('Patient booking link copied!');
-          }} className="btn-ghost text-xs px-3 font-bold border border-white/10 flex items-center gap-2">
-            <span>🔗</span> Copy Patient Link
+          }} className="btn-ghost text-xs px-3 font-bold border border-white/10 flex items-center gap-2 md:hidden">
+            <span>🔗</span> Copy Link
           </button>
           <Link to="/staff/booking" className="btn-primary">+ New Booking</Link>
         </div>

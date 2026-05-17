@@ -35,13 +35,21 @@ export default function AdminDashboard() {
           </p>
         </div>
         
-        <button onClick={() => {
-          const url = `${window.location.origin}/book/${hospital?.slug}`;
-          navigator.clipboard.writeText(url);
-          toast.success('Patient booking link copied!');
-        }} className="btn-ghost text-xs px-3 font-bold border border-white/10 flex items-center gap-2">
-          <span>🔗</span> Copy Patient Link
-        </button>
+        <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded-xl border border-white/10">
+          <div className="flex items-center pl-2 text-xs text-white/50 whitespace-nowrap">
+            🔗 Patient Booking Link:
+          </div>
+          <input readOnly value={`${window.location.origin}/book/${hospital?.slug}`} 
+                 className="bg-transparent border-none text-xs text-primary font-bold outline-none w-[220px] px-2 truncate selection:bg-primary/30" 
+                 onClick={e => e.target.select()} />
+          <button onClick={() => {
+            const url = `${window.location.origin}/book/${hospital?.slug}`;
+            navigator.clipboard.writeText(url);
+            toast.success('Booking link copied!');
+          }} className="btn-primary text-xs px-4 py-1.5 whitespace-nowrap">
+            Copy Link
+          </button>
+        </div>
       </div>
 
       {/* Today counters */}
