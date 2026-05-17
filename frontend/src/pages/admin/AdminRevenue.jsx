@@ -64,10 +64,13 @@ export default function AdminRevenue() {
   const hospRev = summary?.revenue?.paid?.hospitalRevenue || 0;
   const commPct = hospital?.billing?.commissionPercent || 0;
   const commissionAmt = (hospRev * commPct) / 100;
-  // Fallback to basic if subscription pricing isn't available directly on hospital
-  // Ideally, subscription price is fetched. We assume $0 if not available for safety,
-  // but commission is calculated.
-  const totalDue = commissionAmt; 
+  
+  // Base subscription fee based on plan (fallback to 29 if not set)
+  const planFee = hospital?.subscriptionPlan === 'trial' ? 0 : 
+                  hospital?.subscriptionPlan === 'premium' ? 99 : 
+                  hospital?.subscriptionPlan === 'enterprise' ? 199 : 29;
+
+  const totalDue = commissionAmt + planFee; 
 
   return (
     <div className="pb-10">
@@ -87,33 +90,37 @@ export default function AdminRevenue() {
         </div>
       </div>
 
-      {totalDue > 0 && (
-        <div className="card mb-8 border-l-4 border-accent" style={{ background: 'var(--color-surface2)' }}>
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div>
-              <h3 className="text-lg font-bold text-white mb-1">System Subscription & Commission Due</h3>
-              <p className="text-sm text-muted">Please settle your current month's dues to keep services active.</p>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-xs text-muted uppercase font-bold tracking-wider mb-1">Amount Due</p>
-                <p className="text-2xl font-bold text-accent">{fMoney(totalDue, sym)}</p>
-              </div>
-              <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_blank">
-                <input type="hidden" name="cmd" value="_xclick" />
-                <input type="hidden" name="business" value={paypalEmail} />
-                <input type="hidden" name="currency_code" value={currencyCode} />
-                <input type="hidden" name="item_name" value={`Hospital Subscription & Commission (${MONTHS[month-1]} ${year})`} />
-                <input type="hidden" name="amount" value={totalDue} />
-                <input type="hidden" name="return" value={window.location.href} />
-                <button type="submit" className="btn-primary flex items-center gap-2 h-12 px-6">
-                  <span className="text-xl">💳</span> Pay via PayPal
-                </button>
-              </form>
+      <div className="card mb-8 border-l-4 border-accent" style={{ background: 'var(--color-surface2)' }}>
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-bold text-white mb-1">System Subscription & Commission Due</h3>
+            <p className="text-sm text-muted">Please settle your current month's dues to keep services active.</p>
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-xs px-2 py-0.5 rounded-md bg-white/10 font-bold capitalize">Plan: {hospital?.subscriptionPlan || 'Trial'}</span>
+              <span className="text-xs px-2 py-0.5 rounded-md bg-white/10 font-bold">Base: {fMoney(planFee, sym)}</span>
+              <span className="text-xs px-2 py-0.5 rounded-md bg-white/10 font-bold">Comm ({commPct}%): {fMoney(commissionAmt, sym)}</span>
             </div>
           </div>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <p className="text-xs text-muted uppercase font-bold tracking-wider mb-1">Amount Due</p>
+              <p className="text-2xl font-bold text-accent">{fMoney(totalDue, sym)}</p>
+            </div>
+            <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_blank">
+              <input type="hidden" name="cmd" value="_xclick" />
+              <input type="hidden" name="business" value={paypalEmail} />
+              <input type="hidden" name="currency_code" value={currencyCode} />
+              <input type="hidden" name="item_name" value={`Hospital Subscription & Commission (${MONTHS[month-1]} ${year})`} />
+              <input type="hidden" name="amount" value={totalDue > 0 ? totalDue : 1} /> {/* PayPal requires > 0 */}
+              <input type="hidden" name="return" value={window.location.href} />
+              <button type="submit" disabled={totalDue <= 0 && hospital?.subscriptionPlan === 'trial'} 
+                className={`btn-primary flex items-center gap-2 h-12 px-6 ${totalDue <= 0 ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                <span className="text-xl">💳</span> Pay via PayPal
+              </button>
+            </form>
+          </div>
         </div>
-      )}
+      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         {[
