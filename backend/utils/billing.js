@@ -66,14 +66,70 @@ async function generateMonthlyInvoice(hospital) {
   }
 }
 
+const SystemPayment = require('../models/SystemPayment');
+
+async function checkPaymentReminders() {
+  try {
+    const now = new Date();
+    const currentMonthStr = `${now.toLocaleString('en-US', { month: 'short' })} ${now.getFullYear()}`;
+    const hospitals = await Hospital.find({ isActive: true });
+    
+    for (const h of hospitals) {
+      const paymentExists = await SystemPayment.findOne({ 
+        hospitalId: h._id, 
+        period: currentMonthStr,
+        status: 'paid'
+      });
+
+      if (!paymentExists) {
+        // Send Reminder
+        const settings = await SystemSettings.findOne();
+        if (settings?.email?.enabled && h.email) {
+          const nodemailer = require('nodemailer');
+          const transporter = nodemailer.createTransporter({
+            host: settings.email.host, port: settings.email.port, secure: settings.email.secure,
+            auth: { user: settings.email.user, pass: settings.email.password }
+          });
+          const subject = `ACTION REQUIRED: Payment Reminder — ${h.name} — ${currentMonthStr}`;
+          await transporter.sendMail({
+            from:    `"${settings.email.fromName}" <${settings.email.fromEmail}>`,
+            to:      h.billing?.billingEmail || h.email,
+            subject,
+            html: `
+              <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+                <h2 style="color:#ef4444">Payment Due Reminder</h2>
+                <p><strong>Hospital:</strong> ${h.name}</p>
+                <p><strong>Period:</strong> ${currentMonthStr}</p>
+                <hr/>
+                <p>This is a polite reminder that your system subscription and commission payment for <strong>${currentMonthStr}</strong> has not yet been recorded.</p>
+                <p>Please log in to your Admin Dashboard and navigate to the <strong>Revenue</strong> section to process your payment via PayPal.</p>
+                <p>Prompt payments ensure uninterrupted access to the platform services.</p>
+                <br/>
+                <p style="color:#666;font-size:12px;margin-top:20px">If you have already made this payment, please ensure it was properly logged in the system.</p>
+              </div>`
+          });
+          console.log(`⏰ Reminder emailed to: ${h.name} (${h.email})`);
+        }
+      }
+    }
+  } catch (err) { console.error('Reminder error:', err.message); }
+}
+
 function startBillingScheduler() {
-  // Run on 1st of every month at 6 AM
+  // Run on 1st of every month at 6 AM (Invoice generation)
   cron.schedule('0 6 1 * *', async () => {
     console.log('💰 Running monthly billing...');
     const hospitals = await Hospital.find({ isActive: true });
     for (const h of hospitals) { await generateMonthlyInvoice(h); }
   });
-  console.log('💰 Billing scheduler started (1st of month at 6 AM)');
+  
+  // Run on 28th of every month at 9 AM (Payment Reminder)
+  cron.schedule('0 9 28 * *', async () => {
+    console.log('🔔 Running end-of-month payment reminders...');
+    await checkPaymentReminders();
+  });
+  
+  console.log('💰 Billing & Reminder schedulers started');
 }
 
-module.exports = { generateMonthlyInvoice, startBillingScheduler };
+module.exports = { generateMonthlyInvoice, startBillingScheduler, checkPaymentReminders };

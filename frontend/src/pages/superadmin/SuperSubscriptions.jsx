@@ -52,40 +52,106 @@ function PlanForm({ plan, onSave, onCancel }) {
 
 export default function SuperSubscriptions() {
   const [plans,setPlans]=useState([]);
+  const [payments,setPayments]=useState([]);
   const [loading,setLoading]=useState(true);
   const [showForm,setShowForm]=useState(false);
   const [editPlan,setEditPlan]=useState(null);
-  const fetch=()=>{ api.get('/subscriptions').then(({data})=>setPlans(data.plans||[])).catch(()=>{}).finally(()=>setLoading(false)); };
+  const [tab, setTab] = useState('plans'); // 'plans' or 'payments'
+
+  const fetch=()=>{ 
+    api.get('/subscriptions').then(({data})=>setPlans(data.plans||[]));
+    api.get('/subscriptions/payments').then(({data})=>setPayments(data.payments||[])).finally(()=>setLoading(false));
+  };
+  
   useEffect(()=>{ fetch(); },[]);
   const del=async(id)=>{ if(!window.confirm('Delete?'))return; try{await api.delete('/subscriptions/'+id);fetch();toast.success('Deleted');}catch{toast.error('Cannot delete plan in use');} };
+  
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between mb-6 gap-3">
-        <div><h1 className="page-title">Subscription Plans</h1><p className="text-sm" style={{ color:'var(--color-text-muted)' }}>Manage feature sets and per-booking commissions</p></div>
-        <button onClick={()=>{setShowForm(true);setEditPlan(null);}} className="btn-primary">+ New Plan</button>
+        <div>
+          <h1 className="page-title">Subscriptions & Payments</h1>
+          <p className="text-sm" style={{ color:'var(--color-text-muted)' }}>Manage feature sets, commissions, and view system payment logs</p>
+        </div>
+        {tab === 'plans' && <button onClick={()=>{setShowForm(true);setEditPlan(null);}} className="btn-primary">+ New Plan</button>}
       </div>
-      {(showForm||editPlan)&&<PlanForm plan={editPlan} onSave={()=>{setShowForm(false);setEditPlan(null);fetch();}} onCancel={()=>{setShowForm(false);setEditPlan(null);}} />}
-      <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {loading?Array(3).fill(0).map((_,i)=><div key={i} className="card animate-pulse h-52"/>)
-          :plans.map(p=>(
-          <div key={p._id} className="card">
-            <div className="flex items-start justify-between mb-3">
-              <div><p className="font-bold text-white text-lg">{p.name}</p><p className="text-xs font-mono" style={{ color:'var(--color-primary)' }}>{p.code}</p>{p.description&&<p className="text-xs mt-1" style={{ color:'var(--color-text-muted)' }}>{p.description}</p>}</div>
-              <div className="text-right"><p className="font-bold text-white">Rs.{(p.price||0).toLocaleString()}<span className="text-xs" style={{ color:'var(--color-text-muted)' }}>/mo</span></p>{p.commissionPercent>0&&<p className="text-xs" style={{ color:'#f59e0b' }}>{p.commissionPercent}% per booking</p>}</div>
-            </div>
-            <div className="flex flex-wrap gap-1 mb-4">
-              {FEATURES.filter(([k])=>p.features?.[k]===true).map(([k,l])=>(
-                <span key={k} className="text-xs px-2 py-0.5 rounded-full" style={{ background:'rgba(var(--color-primary-rgb),0.12)',color:'var(--color-primary)' }}>{l}</span>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <button onClick={()=>{setEditPlan(p);setShowForm(false);}} className="btn-ghost text-xs flex-1">✏ Edit</button>
-              <span className={`badge ${p.isActive?'badge-completed':'badge-absent'}`}>{p.isActive?'Active':'Off'}</span>
-              <button onClick={()=>del(p._id)} className="text-xs px-3 py-1.5 rounded-xl" style={{ background:'rgba(239,68,68,0.1)',color:'#ef4444' }}>Delete</button>
-            </div>
-          </div>
+
+      <div className="flex gap-2 mb-6 border-b pb-0" style={{ borderColor:'var(--color-border)' }}>
+        {['plans', 'payments'].map(t=>(
+          <button key={t} onClick={()=>setTab(t)}
+            className="px-4 py-2.5 text-sm font-medium transition-all capitalize"
+            style={{ color: tab===t?'var(--color-primary)':'var(--color-text-muted)', borderBottom: tab===t?'2px solid var(--color-primary)':'2px solid transparent', marginBottom:'-1px' }}>
+            {t}
+          </button>
         ))}
       </div>
+
+      {tab === 'plans' && (
+        <>
+          {(showForm||editPlan)&&<PlanForm plan={editPlan} onSave={()=>{setShowForm(false);setEditPlan(null);fetch();}} onCancel={()=>{setShowForm(false);setEditPlan(null);}} />}
+          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {loading?Array(3).fill(0).map((_,i)=><div key={i} className="card animate-pulse h-52"/>)
+              :plans.map(p=>(
+              <div key={p._id} className="card">
+                <div className="flex items-start justify-between mb-3">
+                  <div><p className="font-bold text-white text-lg">{p.name}</p><p className="text-xs font-mono" style={{ color:'var(--color-primary)' }}>{p.code}</p>{p.description&&<p className="text-xs mt-1" style={{ color:'var(--color-text-muted)' }}>{p.description}</p>}</div>
+                  <div className="text-right"><p className="font-bold text-white">Rs.{(p.price||0).toLocaleString()}<span className="text-xs" style={{ color:'var(--color-text-muted)' }}>/mo</span></p>{p.commissionPercent>0&&<p className="text-xs" style={{ color:'#f59e0b' }}>{p.commissionPercent}% per booking</p>}</div>
+                </div>
+                <div className="flex flex-wrap gap-1 mb-4">
+                  {FEATURES.filter(([k])=>p.features?.[k]===true).map(([k,l])=>(
+                    <span key={k} className="text-xs px-2 py-0.5 rounded-full" style={{ background:'rgba(var(--color-primary-rgb),0.12)',color:'var(--color-primary)' }}>{l}</span>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={()=>{setEditPlan(p);setShowForm(false);}} className="btn-ghost text-xs flex-1">✏ Edit</button>
+                  <span className={`badge ${p.isActive?'badge-completed':'badge-absent'}`}>{p.isActive?'Active':'Off'}</span>
+                  <button onClick={()=>del(p._id)} className="text-xs px-3 py-1.5 rounded-xl" style={{ background:'rgba(239,68,68,0.1)',color:'#ef4444' }}>Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {tab === 'payments' && (
+        <div className="card">
+          <h3 className="section-title text-base mb-4">Global Payment Logs</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b" style={{ borderColor: 'var(--color-border)' }}>
+                  <th className="py-2 text-muted font-medium">Date</th>
+                  <th className="py-2 text-muted font-medium">Hospital</th>
+                  <th className="py-2 text-muted font-medium">Period</th>
+                  <th className="py-2 text-muted font-medium">Cycle</th>
+                  <th className="py-2 text-muted font-medium">Txn ID</th>
+                  <th className="py-2 text-muted font-medium">Amount</th>
+                  <th className="py-2 text-muted font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? <tr><td colSpan="7" className="py-4 text-center text-muted">Loading...</td></tr> : 
+                 payments.length === 0 ? <tr><td colSpan="7" className="py-4 text-center text-muted">No payments recorded</td></tr> :
+                 payments.map(p => (
+                  <tr key={p._id} className="border-b last:border-0" style={{ borderColor: 'var(--color-border)' }}>
+                    <td className="py-3 text-white">{new Date(p.createdAt).toLocaleDateString()}</td>
+                    <td className="py-3 text-white font-medium">{p.hospitalId?.name || p.hospitalId?.shortName || 'Unknown'}</td>
+                    <td className="py-3 text-white">{p.period}</td>
+                    <td className="py-3 capitalize text-white">{p.billingCycle}</td>
+                    <td className="py-3 text-xs text-muted font-mono">{p.transactionId}</td>
+                    <td className="py-3 font-bold text-accent">{p.amount} {p.currency}</td>
+                    <td className="py-3">
+                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${p.status === 'paid' ? 'bg-success/20 text-success' : 'bg-warning/20 text-warning'}`}>
+                        {p.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

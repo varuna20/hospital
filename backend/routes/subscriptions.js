@@ -21,7 +21,48 @@ router.get('/public', async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
-// All management routes require super admin
+const SystemPayment = require('../models/SystemPayment');
+const { getHospitalId } = require('../middleware/auth');
+
+// ── Admin/Superadmin: Get System Payments ──────────────────────────
+router.get('/payments', protect, async (req, res) => {
+  try {
+    const filter = {};
+    if (req.user.role !== 'superadmin') {
+      const hid = getHospitalId(req);
+      if (!hid) return res.status(400).json({ success: false, message: 'Hospital context required' });
+      filter.hospitalId = hid;
+    }
+    const payments = await SystemPayment.find(filter)
+      .populate('hospitalId', 'name shortName')
+      .sort({ createdAt: -1 })
+      .limit(100);
+    res.json({ success: true, payments });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// ── Admin: Log successful PayPal transaction ────────────────────────
+router.post('/payments', protect, async (req, res) => {
+  try {
+    const hid = getHospitalId(req);
+    if (!hid) return res.status(400).json({ success: false, message: 'Hospital context required' });
+    
+    const { amount, currency, period, billingCycle, transactionId, details } = req.body;
+    const payment = await SystemPayment.create({
+      hospitalId: hid, amount, currency, period, billingCycle, transactionId, details, status: 'paid'
+    });
+
+    // Update hospital's last bill
+    await Hospital.findByIdAndUpdate(hid, { 
+      'billing.lastBilledAt': new Date(), 
+      'billing.lastBillAmount': amount 
+    });
+
+    res.status(201).json({ success: true, payment });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// All management routes below require super admin
 router.use(protect, superAdminOnly);
 
 // List all plans

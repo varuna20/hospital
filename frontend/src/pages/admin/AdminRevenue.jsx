@@ -29,21 +29,26 @@ export default function AdminRevenue() {
 
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+  const [billingCycle, setBillingCycle] = useState('monthly');
+  const [paymentHistory, setPaymentHistory] = useState([]);
+
   useEffect(() => { loadAll(); }, [period, month, year]);
 
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [s, d, chart, rep] = await Promise.all([
+      const [s, d, chart, rep, ph] = await Promise.all([
         api.get(`/revenue/summary?period=${period}&month=${month}&year=${year}`),
         api.get(`/revenue/by-doctor?month=${month}&year=${year}`),
         api.get(`/revenue/daily?month=${month}&year=${year}`),
-        api.get(`/hospitals/${hospital._id}/revenue-report`)
+        api.get(`/hospitals/${hospital._id}/revenue-report`),
+        api.get(`/subscriptions/payments`) // Fetch payment history
       ]);
       setSummary(s.data);
       setByDoctor(d.data.breakdown || []);
       setDaily(chart.data.daily || []);
       setReport(rep.data);
+      setPaymentHistory(ph.data.payments || []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -68,11 +73,26 @@ export default function AdminRevenue() {
   const commissionAmt = (hospRev * commPct) / 100;
   
   // Base subscription fee based on plan (fallback to 29 if not set)
-  const planFee = hospital?.subscriptionPlan === 'trial' ? 0 : 
-                  hospital?.subscriptionPlan === 'premium' ? 99 : 
-                  hospital?.subscriptionPlan === 'enterprise' ? 199 : 29;
+  const baseMonthly = hospital?.subscriptionPlan === 'trial' ? 0 : 
+                      hospital?.subscriptionPlan === 'premium' ? 99 : 
+                      hospital?.subscriptionPlan === 'enterprise' ? 199 : 29;
 
+  const planFee = billingCycle === 'annual' ? baseMonthly * 12 : baseMonthly;
   const totalDue = commissionAmt + planFee; 
+
+  const logPayment = async (details) => {
+    try {
+      await api.post('/subscriptions/payments', {
+        amount: totalDue,
+        currency: currencyCode,
+        period: `${MONTHS[month-1]} ${year}`,
+        billingCycle,
+        transactionId: details?.id || 'manual_entry',
+        details
+      });
+      loadAll();
+    } catch (e) { console.error('Failed to log payment to system', e); }
+  };
 
   return (
     <div className="pb-10">
@@ -93,39 +113,44 @@ export default function AdminRevenue() {
       </div>
 
       <div className="card mb-8 border-l-4 border-accent" style={{ background: 'var(--color-surface2)' }}>
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
             <h3 className="text-lg font-bold text-white mb-1">System Subscription & Commission Due</h3>
-            <p className="text-sm text-muted">Please settle your current month's dues to keep services active.</p>
+            <p className="text-sm text-muted mb-3">Please settle your current month's dues to keep services active.</p>
+            
+            <div className="flex bg-black/20 p-1 rounded-lg w-fit mb-3">
+              <button onClick={() => setBillingCycle('monthly')} className={`px-4 py-1.5 text-xs font-bold rounded-md transition-colors ${billingCycle==='monthly'?'bg-primary text-white':'text-muted hover:text-white'}`}>Monthly</button>
+              <button onClick={() => setBillingCycle('annual')} className={`px-4 py-1.5 text-xs font-bold rounded-md transition-colors ${billingCycle==='annual'?'bg-primary text-white':'text-muted hover:text-white'}`}>Annual (Save 10%)</button>
+            </div>
+
             <div className="flex items-center gap-2 mt-2">
               <span className="text-xs px-2 py-0.5 rounded-md bg-white/10 font-bold capitalize">Plan: {hospital?.subscriptionPlan || 'Trial'}</span>
               <span className="text-xs px-2 py-0.5 rounded-md bg-white/10 font-bold">Base: {fMoney(planFee, sym)}</span>
               <span className="text-xs px-2 py-0.5 rounded-md bg-white/10 font-bold">Comm ({commPct}%): {fMoney(commissionAmt, sym)}</span>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col items-end gap-3 mt-4 md:mt-0">
             <div className="text-right">
               <p className="text-xs text-muted uppercase font-bold tracking-wider mb-1">Amount Due</p>
               <p className="text-2xl font-bold text-accent">{fMoney(totalDue, sym)}</p>
             </div>
             {systemSettings?.payment?.paypalClientId ? (
-              <div className="w-[200px]">
+              <div className="w-[200px] mt-2">
                 <PayPalScriptProvider options={{ "client-id": systemSettings.payment.paypalClientId, currency: currencyCode }}>
                   <PayPalButtons 
                     style={{ layout: "horizontal", height: 48, color: 'blue' }}
                     createOrder={(data, actions) => {
                       return actions.order.create({
-                        purchase_units: [
-                          {
-                            amount: { value: (totalDue > 0 ? totalDue : 1).toString() },
-                            description: `Subscription & Comm (${MONTHS[month-1]} ${year})`
-                          },
-                        ],
+                        purchase_units: [{
+                          amount: { value: (totalDue > 0 ? totalDue : 1).toString() },
+                          description: `Subscription & Comm (${MONTHS[month-1]} ${year})`
+                        }],
                       });
                     }}
                     onApprove={async (data, actions) => {
-                      await actions.order.capture();
+                      const details = await actions.order.capture();
                       toast.success('Payment completed successfully!');
+                      logPayment(details);
                     }}
                     onError={(err) => {
                       toast.error('PayPal Checkout failed. Check your PayPal config.');
@@ -135,7 +160,7 @@ export default function AdminRevenue() {
                 </PayPalScriptProvider>
               </div>
             ) : (
-              <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_blank">
+              <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_blank" onSubmit={() => { setTimeout(() => logPayment({ method: 'redirect_form' }), 5000) }}>
                 <input type="hidden" name="cmd" value="_xclick" />
                 <input type="hidden" name="business" value={paypalEmail} />
                 <input type="hidden" name="currency_code" value={currencyCode} />
@@ -143,7 +168,7 @@ export default function AdminRevenue() {
                 <input type="hidden" name="amount" value={totalDue > 0 ? totalDue : 1} />
                 <input type="hidden" name="return" value={window.location.href} />
                 <button type="submit" disabled={totalDue <= 0 && hospital?.subscriptionPlan === 'trial'} 
-                  className={`btn-primary flex items-center gap-2 h-12 px-6 ${totalDue <= 0 ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                  className={`btn-primary flex items-center gap-2 h-12 px-6 mt-2 ${totalDue <= 0 ? 'opacity-50 cursor-not-allowed' : ''}`}>
                   <span className="text-xl">💳</span> Pay via PayPal
                 </button>
               </form>
@@ -151,6 +176,43 @@ export default function AdminRevenue() {
           </div>
         </div>
       </div>
+
+      {/* Payment History Log */}
+      {paymentHistory.length > 0 && (
+        <div className="card mb-8">
+          <h3 className="section-title text-base mb-4">Subscription Payment History</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b" style={{ borderColor: 'var(--color-border)' }}>
+                  <th className="py-2 text-muted font-medium">Date</th>
+                  <th className="py-2 text-muted font-medium">Period</th>
+                  <th className="py-2 text-muted font-medium">Cycle</th>
+                  <th className="py-2 text-muted font-medium">Method</th>
+                  <th className="py-2 text-muted font-medium">Amount</th>
+                  <th className="py-2 text-muted font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paymentHistory.map(p => (
+                  <tr key={p._id} className="border-b last:border-0" style={{ borderColor: 'var(--color-border)' }}>
+                    <td className="py-3 text-white">{new Date(p.createdAt).toLocaleDateString()}</td>
+                    <td className="py-3 text-white">{p.period}</td>
+                    <td className="py-3 capitalize text-white">{p.billingCycle}</td>
+                    <td className="py-3 capitalize text-muted">{p.paymentMethod}</td>
+                    <td className="py-3 font-bold text-white">{fMoney(p.amount, p.currency)}</td>
+                    <td className="py-3">
+                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${p.status === 'paid' ? 'bg-success/20 text-success' : 'bg-warning/20 text-warning'}`}>
+                        {p.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         {[
