@@ -10,8 +10,11 @@ import {
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#f87171', '#06b6d4', '#a855f7', '#ec4899'];
 
 export default function AdminRevenue() {
-  const { hospital } = useAuth();
+  const { hospital, systemSettings } = useAuth();
   const sym = hospital?.payment?.currencySymbol || 'Rs.';
+  const paypalEmail = systemSettings?.payment?.paypalEmail || 'varuna.20@gmail.com';
+  const currencyCode = systemSettings?.payment?.currency || 'USD';
+
   const [summary,   setSummary]   = useState(null);
   const [report,    setReport]    = useState(null);
   const [byDoctor,  setByDoctor]  = useState([]);
@@ -57,6 +60,15 @@ export default function AdminRevenue() {
 
   const trendData = report ? (reportType === 'weekly' ? report.weekly : report.monthly) : [];
 
+  // Calculate System Due (Commission + Subscription)
+  const hospRev = summary?.revenue?.paid?.hospitalRevenue || 0;
+  const commPct = hospital?.billing?.commissionPercent || 0;
+  const commissionAmt = (hospRev * commPct) / 100;
+  // Fallback to basic if subscription pricing isn't available directly on hospital
+  // Ideally, subscription price is fetched. We assume $0 if not available for safety,
+  // but commission is calculated.
+  const totalDue = commissionAmt; 
+
   return (
     <div className="pb-10">
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
@@ -74,6 +86,34 @@ export default function AdminRevenue() {
           <button onClick={exportCSV} className="btn-ghost text-xs px-4 border border-white/10 h-10">📥 Export CSV</button>
         </div>
       </div>
+
+      {totalDue > 0 && (
+        <div className="card mb-8 border-l-4 border-accent" style={{ background: 'var(--color-surface2)' }}>
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-bold text-white mb-1">System Subscription & Commission Due</h3>
+              <p className="text-sm text-muted">Please settle your current month's dues to keep services active.</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <p className="text-xs text-muted uppercase font-bold tracking-wider mb-1">Amount Due</p>
+                <p className="text-2xl font-bold text-accent">{fMoney(totalDue, sym)}</p>
+              </div>
+              <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_blank">
+                <input type="hidden" name="cmd" value="_xclick" />
+                <input type="hidden" name="business" value={paypalEmail} />
+                <input type="hidden" name="currency_code" value={currencyCode} />
+                <input type="hidden" name="item_name" value={`Hospital Subscription & Commission (${MONTHS[month-1]} ${year})`} />
+                <input type="hidden" name="amount" value={totalDue} />
+                <input type="hidden" name="return" value={window.location.href} />
+                <button type="submit" className="btn-primary flex items-center gap-2 h-12 px-6">
+                  <span className="text-xl">💳</span> Pay via PayPal
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         {[

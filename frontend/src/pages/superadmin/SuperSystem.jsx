@@ -201,6 +201,7 @@ export default function SuperSystem() {
 
   const tabs = [
     { id:'branding', label:'🎨 Branding' },
+    { id:'payment',  label:'💳 Payments' },
     { id:'email',    label:'✉ Email/SMTP' },
     { id:'sms',      label:'📱 SMS' },
     { id:'backup',   label:'💾 Backup' },
@@ -281,6 +282,36 @@ export default function SuperSystem() {
           </div>
 
           <button onClick={save} disabled={saving} className="btn-primary w-full">{saving?'Saving…':'Save Branding'}</button>
+        </div>
+      )}
+
+      {/* PAYMENT TAB */}
+      {activeTab==='payment'&&(
+        <div className="card max-w-2xl space-y-6">
+          <h3 className="section-title">Payment Gateway Configuration</h3>
+          <p className="text-xs" style={{ color:'var(--color-text-muted)' }}>
+            Configure PayPal to receive subscription fees and commissions from hospital admins.
+          </p>
+
+          <div className="grid gap-4">
+            <div>
+              <label className="label">PayPal Account Email</label>
+              <input className="input" placeholder="e.g. varuna.20@gmail.com" 
+                     value={settings.payment?.paypalEmail || ''} onChange={e=>upd('payment.paypalEmail', e.target.value)} />
+            </div>
+            <div>
+              <label className="label">PayPal Client ID (Optional for Smart Buttons)</label>
+              <input className="input" placeholder="Enter REST API Client ID" 
+                     value={settings.payment?.paypalClientId || ''} onChange={e=>upd('payment.paypalClientId', e.target.value)} />
+              <p className="text-[10px] text-white/40 mt-1">If empty, standard HTML form checkout will be used with the email address.</p>
+            </div>
+            <div>
+              <label className="label">Currency Code</label>
+              <input className="input max-w-[120px]" placeholder="USD, LKR, etc." 
+                     value={settings.payment?.currency || 'USD'} onChange={e=>upd('payment.currency', e.target.value)} />
+            </div>
+          </div>
+          <button onClick={save} disabled={saving} className="btn-primary w-full">{saving?'Saving…':'Save Payment Details'}</button>
         </div>
       )}
 

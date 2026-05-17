@@ -11,7 +11,7 @@ export function AuthProvider({ children }) {
   const fetchSystemSettings = async () => {
     try {
       const { data } = await api.get('/system/branding');
-      if (data.success) setSystemSettings({ branding: data.branding });
+      if (data.success) setSystemSettings({ branding: data.branding, payment: data.payment });
     } catch (e) { console.warn('System branding fetch failed'); }
   };
 

@@ -108,6 +108,13 @@ const systemSettingsSchema = new mongoose.Schema({
     brandName:   { type: String, default: 'Chevara Labs' },
     website:     { type: String, default: 'https://chevaralabs.com' },
     footerText:  { type: String, default: 'Powered by' }
+  },
+
+  // ── Payment Gateway ───────────────────────────────────────────
+  payment: {
+    paypalClientId: { type: String, default: '' },
+    paypalEmail:    { type: String, default: 'varuna.20@gmail.com' },
+    currency:       { type: String, default: 'USD' }
   }
 
 }, { timestamps: true });

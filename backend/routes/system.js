@@ -12,11 +12,11 @@ const router  = express.Router();
 const { SystemSettings } = require('../models/SystemSettings');
 const { protect, superAdminOnly } = require('../middleware/auth');
 
-// Public route for branding (logo, name)
+// Public route for branding (logo, name) and public payment info
 router.get('/branding', async (req, res) => {
   try {
-    const s = await SystemSettings.findOne().select('branding');
-    res.json({ success: true, branding: s?.branding || {} });
+    const s = await SystemSettings.findOne().select('branding payment');
+    res.json({ success: true, branding: s?.branding || {}, payment: s?.payment || {} });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
