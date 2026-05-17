@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -6,52 +6,52 @@ import { ThemeProvider } from './context/ThemeContext';
 import { SocketProvider } from './context/SocketContext';
 
 // Public
-import HospitalLoginPage from './pages/HospitalLoginPage';
-import LoginPage          from './pages/LoginPage';
-import BookingPage        from './pages/patient/BookingPage';
-import QueueStatus        from './pages/patient/QueueStatus';
-import PatientDashboard   from './pages/patient/PatientDashboard';
-import DisplayScreen      from './pages/display/DisplayScreen';
-import DoctorDisplay      from './pages/display/DoctorDisplay';
-import KioskApp           from './pages/display/KioskApp';
-import PrescriptionPrint  from './pages/doctor/PrescriptionPrint';
+const HospitalLoginPage = React.lazy(() => import('./pages/HospitalLoginPage'));
+const LoginPage = React.lazy(() => import('./pages/LoginPage'));
+const BookingPage = React.lazy(() => import('./pages/patient/BookingPage'));
+const QueueStatus = React.lazy(() => import('./pages/patient/QueueStatus'));
+const PatientDashboard = React.lazy(() => import('./pages/patient/PatientDashboard'));
+const DisplayScreen = React.lazy(() => import('./pages/display/DisplayScreen'));
+const DoctorDisplay = React.lazy(() => import('./pages/display/DoctorDisplay'));
+const KioskApp = React.lazy(() => import('./pages/display/KioskApp'));
+const PrescriptionPrint = React.lazy(() => import('./pages/doctor/PrescriptionPrint'));
 
 // Super Admin
-import SuperLayout        from './pages/superadmin/SuperLayout';
-import SuperDashboard     from './pages/superadmin/SuperDashboard';
-import SuperHospitals     from './pages/superadmin/SuperHospitals';
-import SuperRevenue       from './pages/superadmin/SuperRevenue';
-import SuperSubscriptions from './pages/superadmin/SuperSubscriptions';
-import SuperHospitalLinks from './pages/superadmin/SuperHospitalLinks';
-import SuperSystem        from './pages/superadmin/SuperSystem';
-import SuperLogs          from './pages/superadmin/SuperLogs';
-import SuperPatients      from './pages/superadmin/SuperPatients';
+const SuperLayout = React.lazy(() => import('./pages/superadmin/SuperLayout'));
+const SuperDashboard = React.lazy(() => import('./pages/superadmin/SuperDashboard'));
+const SuperHospitals = React.lazy(() => import('./pages/superadmin/SuperHospitals'));
+const SuperRevenue = React.lazy(() => import('./pages/superadmin/SuperRevenue'));
+const SuperSubscriptions = React.lazy(() => import('./pages/superadmin/SuperSubscriptions'));
+const SuperHospitalLinks = React.lazy(() => import('./pages/superadmin/SuperHospitalLinks'));
+const SuperSystem = React.lazy(() => import('./pages/superadmin/SuperSystem'));
+const SuperLogs = React.lazy(() => import('./pages/superadmin/SuperLogs'));
+const SuperPatients = React.lazy(() => import('./pages/superadmin/SuperPatients'));
 
 // Admin
-import AdminLayout        from './pages/admin/AdminLayout';
-import AdminDashboard     from './pages/admin/AdminDashboard';
-import AdminDoctors       from './pages/admin/AdminDoctors';
-import AdminStaff         from './pages/admin/AdminStaff';
-import AdminRevenue       from './pages/admin/AdminRevenue';
-import AdminSettings      from './pages/admin/AdminSettings';
-import AdminMedia         from './pages/admin/AdminMedia';
-import DrugLibrary        from './pages/admin/DrugLibrary';
+const AdminLayout = React.lazy(() => import('./pages/admin/AdminLayout'));
+const AdminDashboard = React.lazy(() => import('./pages/admin/AdminDashboard'));
+const AdminDoctors = React.lazy(() => import('./pages/admin/AdminDoctors'));
+const AdminStaff = React.lazy(() => import('./pages/admin/AdminStaff'));
+const AdminRevenue = React.lazy(() => import('./pages/admin/AdminRevenue'));
+const AdminSettings = React.lazy(() => import('./pages/admin/AdminSettings'));
+const AdminMedia = React.lazy(() => import('./pages/admin/AdminMedia'));
+const DrugLibrary = React.lazy(() => import('./pages/admin/DrugLibrary'));
 
 // Staff
-import StaffLayout        from './pages/staff/StaffLayout';
-import StaffDashboard     from './pages/staff/StaffDashboard';
-import StaffQueue         from './pages/staff/StaffQueue';
-import StaffBooking       from './pages/staff/StaffBooking';
-import StaffRefund        from './pages/staff/StaffRefund';
+const StaffLayout = React.lazy(() => import('./pages/staff/StaffLayout'));
+const StaffDashboard = React.lazy(() => import('./pages/staff/StaffDashboard'));
+const StaffQueue = React.lazy(() => import('./pages/staff/StaffQueue'));
+const StaffBooking = React.lazy(() => import('./pages/staff/StaffBooking'));
+const StaffRefund = React.lazy(() => import('./pages/staff/StaffRefund'));
 
 // Doctor
-import DoctorLayout       from './pages/doctor/DoctorLayout';
-import DoctorDashboard    from './pages/doctor/DoctorDashboard';
-import DoctorRevenue      from './pages/doctor/DoctorRevenue';
-import DoctorPrescriptions from './pages/doctor/DoctorPrescriptions';
-import PrescriptionForm   from './pages/doctor/PrescriptionForm';
-import DoctorCalendar   from './pages/doctor/DoctorCalendar';
-import ProfilePage      from './pages/shared/ProfilePage';
+const DoctorLayout = React.lazy(() => import('./pages/doctor/DoctorLayout'));
+const DoctorDashboard = React.lazy(() => import('./pages/doctor/DoctorDashboard'));
+const DoctorRevenue = React.lazy(() => import('./pages/doctor/DoctorRevenue'));
+const DoctorPrescriptions = React.lazy(() => import('./pages/doctor/DoctorPrescriptions'));
+const PrescriptionForm = React.lazy(() => import('./pages/doctor/PrescriptionForm'));
+const DoctorCalendar = React.lazy(() => import('./pages/doctor/DoctorCalendar'));
+const ProfilePage = React.lazy(() => import('./pages/shared/ProfilePage'));
 
 function Protected({ children, roles }) {
   const { user, loading } = useAuth();
@@ -78,7 +78,8 @@ export default function App() {
               style: { background: 'var(--color-surface)', color: 'var(--color-text)', border: '1px solid var(--color-border)' },
               success: { iconTheme: { primary: 'var(--color-primary)', secondary: '#fff' } }
             }} />
-            <Routes>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin border-primary"></div></div>}>
+              <Routes>
               {/* Public */}
               <Route path="/"                         element={<BookingPage />} />
               <Route path="/login/:slug"              element={<HospitalLoginPage />} />
@@ -138,6 +139,7 @@ export default function App() {
 
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
+              </Suspense>
           </BrowserRouter>
         </SocketProvider>
       </ThemeProvider>

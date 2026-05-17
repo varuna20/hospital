@@ -34,7 +34,23 @@ try {
         "connect-src": ["'self'", "*"],
       },
     },
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true
+    }
   }));
+
+  // Enforce Encrypted Tunnels (HTTPS) in Production
+  if (process.env.NODE_ENV === 'production') {
+    app.use((req, res, next) => {
+      if (req.headers['x-forwarded-proto'] !== 'https') {
+        return res.redirect(301, `https://${req.headers.host}${req.url}`);
+      }
+      next();
+    });
+  }
+
   app.use(mongoSanitize({ replaceWith: '_' }));
   app.use(hpp({ whitelist: ['status','role','doctorId','hospitalId'] }));
   app.use(compression({
