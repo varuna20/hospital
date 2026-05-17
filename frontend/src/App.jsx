@@ -82,6 +82,7 @@ export default function App() {
               <Routes>
               {/* Public */}
               <Route path="/"                         element={<BookingPage />} />
+              <Route path="/book/:slug"               element={<BookingPage />} />
               <Route path="/login/:slug"              element={<HospitalLoginPage />} />
               <Route path="/login"                    element={<LoginPage />} />
               <Route path="/queue-status/:token"      element={<QueueStatus />} />

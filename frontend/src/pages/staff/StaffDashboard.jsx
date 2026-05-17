@@ -55,10 +55,19 @@ export default function StaffDashboard() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between mb-6 gap-3">
         <div><h1 className="page-title">Reception Desk</h1>
           <p className="text-sm" style={{ color:'var(--color-text-muted)' }}>Live queue overview — {hospital?.name}</p></div>
-        <Link to="/staff/booking" className="btn-primary">+ New Booking</Link>
+        <div className="flex gap-2">
+          <button onClick={() => {
+            const url = `${window.location.origin}/book/${hospital?.slug}`;
+            navigator.clipboard.writeText(url);
+            toast.success('Patient booking link copied!');
+          }} className="btn-ghost text-xs px-3 font-bold border border-white/10 flex items-center gap-2">
+            <span>🔗</span> Copy Patient Link
+          </button>
+          <Link to="/staff/booking" className="btn-primary">+ New Booking</Link>
+        </div>
       </div>
       <div className="grid grid-cols-3 gap-4 mb-6">
         {[{ l:'Total Today',v:totals.total,c:'var(--color-text)' },

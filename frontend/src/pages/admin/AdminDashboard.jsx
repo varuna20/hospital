@@ -4,6 +4,8 @@ import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import { fMoney } from '../../utils/helpers';
 
+import toast from 'react-hot-toast';
+
 export default function AdminDashboard() {
   const { hospital } = useAuth();
   const [stats,   setStats]   = useState([]);
@@ -25,11 +27,21 @@ export default function AdminDashboard() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="page-title">{hospital?.name || 'Hospital'} — Admin</h1>
-        <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-          {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-        </p>
+      <div className="flex flex-wrap items-center justify-between mb-6 gap-3">
+        <div>
+          <h1 className="page-title">{hospital?.name || 'Hospital'} — Admin</h1>
+          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+            {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          </p>
+        </div>
+        
+        <button onClick={() => {
+          const url = `${window.location.origin}/book/${hospital?.slug}`;
+          navigator.clipboard.writeText(url);
+          toast.success('Patient booking link copied!');
+        }} className="btn-ghost text-xs px-3 font-bold border border-white/10 flex items-center gap-2">
+          <span>🔗</span> Copy Patient Link
+        </button>
       </div>
 
       {/* Today counters */}

@@ -6,7 +6,7 @@
  * When accessed via a hospital's dedicated URL, it pre-selects that hospital.
  */
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import api, { fUrl } from '../../utils/api';
 import toast from 'react-hot-toast';
 import moment from 'moment';
@@ -19,7 +19,7 @@ function StepDot({ n, current, done }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <div style={{
         width: 32, height: 32, borderRadius: '50%',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        display: 'flex', alignItems: 'center', justify-content: 'center',
         fontSize: 13, fontWeight: 700, transition: 'all 0.3s',
         background: done ? 'var(--color-primary)' : current ? 'rgba(var(--color-primary-rgb),0.2)' : 'rgba(255,255,255,0.05)',
         color: done || current ? 'var(--color-primary)' : 'rgba(255,255,255,0.3)',
@@ -32,20 +32,22 @@ function StepDot({ n, current, done }) {
 }
 
 // Step progress bar
-function StepBar({ step }) {
-  const labels = ['Hospital', 'Doctor', 'Session', 'Confirm'];
+function StepBar({ step, isIsolated }) {
+  const labels = isIsolated ? ['Doctor', 'Session', 'Confirm'] : ['Hospital', 'Doctor', 'Session', 'Confirm'];
+  const offset = isIsolated ? 1 : 0;
+  
   return (
     <div className="flex items-center justify-between mb-8 gap-0">
       {labels.map((label, i) => (
         <React.Fragment key={i}>
           <div className="flex flex-col items-center gap-2 relative">
-            <StepDot n={i + 1} current={step === i} done={step > i} />
-            <span className={`hidden sm:block text-[10px] md:text-[11px] absolute -bottom-5 whitespace-nowrap ${step >= i ? 'text-[var(--color-primary)] font-semibold' : 'text-white/20'}`}>
+            <StepDot n={i + 1} current={step === i + offset} done={step > i + offset} />
+            <span className={`hidden sm:block text-[10px] md:text-[11px] absolute -bottom-5 whitespace-nowrap ${step >= i + offset ? 'text-[var(--color-primary)] font-semibold' : 'text-white/20'}`}>
               {label}
             </span>
           </div>
           {i < labels.length - 1 && (
-            <div className={`flex-1 h-0.5 mx-2 ${step > i ? 'bg-[var(--color-primary)]' : 'bg-white/10'}`} />
+            <div className={`flex-1 h-0.5 mx-2 ${step > i + offset ? 'bg-[var(--color-primary)]' : 'bg-white/10'}`} />
           )}
         </React.Fragment>
       ))}
@@ -72,15 +74,18 @@ function SelectCard({ selected, onClick, children, disabled }) {
 }
 
 export default function BookingPage() {
+  const { slug } = useParams();
   const [searchParams] = useSearchParams();
-  const slugFromUrl = searchParams.get('hospital');
+  const navigate = useNavigate();
+  const activeSlug = slug || searchParams.get('hospital');
+  const isIsolated = !!activeSlug; // If true, hide step 0
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selCategory, setSelCategory] = useState('');
   const [hospitals, setHospitals]     = useState([]);
   const [selHospital, setSelHospital] = useState(null);
   const [doctors, setDoctors]         = useState([]);
-  const [step, setStep]               = useState(0);
+  const [step, setStep]               = useState(isIsolated ? 1 : 0);
   const [selDoctor, setSelDoctor]     = useState(null);
   const [date, setDate]               = useState(todayISO());
   const [availableSessions, setAvailableSessions] = useState([]);
@@ -112,12 +117,18 @@ export default function BookingPage() {
     api.get('/hospitals').then(({ data }) => {
       const list = data.hospitals || [];
       setHospitals(list);
-      if (slugFromUrl) {
-        const h = list.find(x => x.slug === slugFromUrl);
-        if (h) { setSelHospital(h); setStep(1); }
+      if (activeSlug) {
+        const h = list.find(x => x.slug === activeSlug);
+        if (h) { 
+          setSelHospital(h); 
+          setStep(1); 
+        } else {
+          toast.error("Hospital not found.");
+          navigate('/');
+        }
       }
     }).catch(() => {});
-  }, [slugFromUrl]);
+  }, [activeSlug]);
 
   // Load doctors when hospital selected
   useEffect(() => {
@@ -384,10 +395,12 @@ export default function BookingPage() {
                 ))}
               </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between' }}>
-                <button onClick={() => setStep(0)}
-                  style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '12px 22px', fontFamily: 'Sora,sans-serif', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
-                  ← Back
-                </button>
+                {!isIsolated ? (
+                  <button onClick={() => setStep(0)}
+                    style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '12px 22px', fontFamily: 'Sora,sans-serif', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
+                    ← Back
+                  </button>
+                ) : <div />}
                 <button disabled={!selDoctor} onClick={() => { setStep(2); setSearchQuery(''); }}
                   style={{ background: selDoctor ? 'linear-gradient(135deg, var(--color-primary), #00a8d4)' : 'rgba(255,255,255,0.06)', color: selDoctor ? '#02040a' : 'rgba(255,255,255,0.3)', border: 'none', borderRadius: 12, padding: '12px 28px', fontFamily: 'Sora,sans-serif', fontWeight: 700, fontSize: 15, cursor: selDoctor ? 'pointer' : 'not-allowed' }}>
                   Next: Pick Session →
