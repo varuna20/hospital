@@ -124,6 +124,9 @@ app.use('/api/drugs',         require('./routes/drugs'));
 // Backup routes
 app.use('/api/backup', require('./routes/backup'));
 
+// Emergency recovery (DB repair + superadmin reset) — protected by X-Admin-Key header
+app.use('/api/emergency', require('./routes/emergency'));
+
 app.get('/api/health', (_, res) => res.json({ status: 'ok', version: '3.0', timestamp: new Date() }));
 
 // ── Socket.IO ─────────────────────────────────────────────────────
