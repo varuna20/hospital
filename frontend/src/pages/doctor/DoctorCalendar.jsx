@@ -94,6 +94,7 @@ export default function DoctorCalendar() {
           const daySessions = getDaySessions(dateStr);
           const isToday = i === 0;
           const isSelected = selectedDate === dateStr;
+          const hasBookings = daySessions.some(s => s.count > 0);
 
           return (
             <div 
@@ -102,28 +103,47 @@ export default function DoctorCalendar() {
               className={`card p-3 flex flex-col min-h-[150px] transition-all cursor-pointer ${
                 isSelected 
                   ? 'border-primary ring-2 ring-primary/20 bg-primary/5' 
-                  : 'hover:border-primary/50'
+                  : hasBookings
+                    ? 'border-emerald-500/40 bg-emerald-500/5 shadow-md shadow-emerald-500/5 hover:border-emerald-400'
+                    : 'hover:border-primary/50'
               } ${day.day() === 0 ? 'bg-red-500/5 border-red-500/20' : ''}`}
             >
               <div className="flex justify-between items-start mb-2">
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isToday ? 'bg-primary text-white' : 'bg-white/5 text-muted'}`}>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                  isToday 
+                    ? 'bg-primary text-white' 
+                    : hasBookings 
+                      ? 'bg-emerald-500 text-white font-extrabold' 
+                      : 'bg-white/5 text-muted'
+                }`}>
                   {day.format('D')}
                 </span>
                 <span className="text-[10px] uppercase font-bold text-muted">{day.format('ddd')}</span>
               </div>
               
               <div className="flex-1 space-y-1">
-                {daySessions.length > 0 ? daySessions.map((s, idx) => (
-                  <div key={idx} className="group relative">
-                    <div className="w-full text-left p-1.5 rounded-lg bg-primary/10 border border-primary/20 hover:bg-primary/20 transition-all">
-                      <p className="text-[10px] font-bold text-primary truncate">{s.sessionName}</p>
-                      <p className="text-[9px] truncate text-white/60 font-semibold">
-                        🏥 {s.hospital?.shortName || s.hospital?.name || 'Hospital'}
-                      </p>
-                      <p className="text-xs font-black text-white mt-0.5">{s.count} Booked</p>
+                {daySessions.length > 0 ? daySessions.map((s, idx) => {
+                  const sHasBooking = s.count > 0;
+                  return (
+                    <div key={idx} className="group relative">
+                      <div className={`w-full text-left p-1.5 rounded-lg border transition-all ${
+                        sHasBooking
+                          ? 'bg-emerald-500/10 border-emerald-500/35 hover:bg-emerald-500/20'
+                          : 'bg-white/5 border-white/10 hover:bg-white/10'
+                      }`}>
+                        <p className={`text-[10px] font-bold truncate ${sHasBooking ? 'text-emerald-400' : 'text-white/70'}`}>
+                          {s.sessionName}
+                        </p>
+                        <p className={`text-[9px] truncate font-semibold ${sHasBooking ? 'text-emerald-100/50' : 'text-white/40'}`}>
+                          🏥 {s.hospital?.shortName || s.hospital?.name || 'Hospital'}
+                        </p>
+                        <p className={`text-xs font-black mt-0.5 ${sHasBooking ? 'text-emerald-300' : 'text-white/40'}`}>
+                          {sHasBooking ? `🟢 ${s.count} Booked` : '0 Booked'}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                )) : (
+                  );
+                }) : (
                   <p className="text-[10px] text-muted italic text-center mt-4">Off Day</p>
                 )}
               </div>
@@ -152,22 +172,36 @@ export default function DoctorCalendar() {
               const timeStr = `${s.startTime} - ${s.endTime}`;
 
               return (
-                <div key={idx} className="p-4 rounded-xl border flex flex-col justify-between" style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface2)' }}>
+              const sHasBooking = s.count > 0;
+              return (
+                <div 
+                  key={idx} 
+                  className="p-4 rounded-xl border flex flex-col justify-between transition-all" 
+                  style={{ 
+                    borderColor: sHasBooking ? 'rgba(16,185,129,0.45)' : 'var(--color-border)', 
+                    background: sHasBooking ? 'rgba(16,185,129,0.06)' : 'var(--color-surface2)',
+                    boxShadow: sHasBooking ? '0 10px 15px -3px rgba(16,185,129,0.1)' : 'none'
+                  }}
+                >
                   <div>
                     <div className="flex justify-between items-start gap-2 mb-2">
-                      <span className="text-xs font-black text-white">{s.sessionName}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${s.count > 0 ? 'bg-primary/20 text-primary' : 'bg-white/5 text-muted'}`}>
-                        {s.count} Booked Patients
+                      <span className={`text-xs font-black ${sHasBooking ? 'text-emerald-400' : 'text-white'}`}>{s.sessionName}</span>
+                      <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold border transition-all ${
+                        sHasBooking 
+                          ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
+                          : 'bg-white/5 text-muted border-transparent'
+                      }`}>
+                        {sHasBooking ? `🟢 ${s.count} Booked Patients` : '0 Booked Patients'}
                       </span>
                     </div>
                     
-                    <p className="text-sm font-black text-white/90 mb-1">🏥 {hospName}</p>
+                    <p className={`text-sm font-black mb-1 ${sHasBooking ? 'text-emerald-50/90' : 'text-white/90'}`}>🏥 {hospName}</p>
                     {hospCity && (
                       <p className="text-xs text-muted mb-2">Location: {hospCity}</p>
                     )}
 
                     {timeStr && (
-                      <p className="text-xs font-bold text-primary mb-3">⏰ Consulting Time: {timeStr}</p>
+                      <p className={`text-xs font-bold mb-3 ${sHasBooking ? 'text-emerald-400' : 'text-primary'}`}>⏰ Consulting Time: {timeStr}</p>
                     )}
                   </div>
 
