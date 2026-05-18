@@ -34,15 +34,16 @@ async function runBackup() {
     const backupFile = path.join(BACKUP_DIR, `backup_${timestamp}.json`);
 
     global.backupProgress.step = 'Listing database collections...';
-    global.backupProgress.progress = 12;
+    global.backupProgress.progress = 10;
 
     // Collect all collections
     const collections = await mongoose.connection.db.listCollections().toArray();
-    const backup = { timestamp: new Date(), version: '3.0', collections: {} };
+    const backup = { timestamp: new Date(), version: '3.0', collections: {}, uploads: [] };
 
+    // Export collections
     for (let i = 0; i < collections.length; i++) {
       const col = collections[i];
-      const pct = Math.floor(15 + ((i / collections.length) * 70));
+      const pct = Math.floor(10 + ((i / collections.length) * 50)); // 10% to 60%
       global.backupProgress.step = `Exporting collection ${col.name} (${i + 1}/${collections.length})...`;
       global.backupProgress.progress = pct;
 
@@ -50,8 +51,38 @@ async function runBackup() {
       backup.collections[col.name] = docs;
     }
 
-    global.backupProgress.step = 'Writing JSON backup file to local disk...';
-    global.backupProgress.progress = 88;
+    // Export uploads directory files recursively
+    global.backupProgress.step = 'Scanning and packing uploaded branding, logos, slideshows and videos...';
+    global.backupProgress.progress = 62;
+
+    const UPLOADS_DIR = path.join(__dirname, '../uploads');
+    const packedFiles = [];
+
+    const walkDir = (dir, baseDir = UPLOADS_DIR) => {
+      if (!fs.existsSync(dir)) return;
+      const list = fs.readdirSync(dir);
+      for (const file of list) {
+        const fullPath = path.join(dir, file);
+        const relPath = path.relative(baseDir, fullPath).replace(/\\/g, '/');
+        const stat = fs.statSync(fullPath);
+        if (stat.isDirectory()) {
+          walkDir(fullPath, baseDir);
+        } else {
+          try {
+            const content = fs.readFileSync(fullPath, 'base64');
+            packedFiles.push({ path: relPath, content });
+          } catch (e) {
+            console.warn(`Failed to read file ${fullPath}:`, e.message);
+          }
+        }
+      }
+    };
+
+    walkDir(UPLOADS_DIR);
+    backup.uploads = packedFiles;
+
+    global.backupProgress.step = `Packed ${packedFiles.length} upload assets. Writing backup JSON payload...`;
+    global.backupProgress.progress = 85;
 
     fs.writeFileSync(backupFile, JSON.stringify(backup, null, 2));
     const sizeMB = (fs.statSync(backupFile).size / 1024 / 1024).toFixed(2);
@@ -77,7 +108,7 @@ async function runBackup() {
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
     console.log(`✅ Backup complete: ${backupFile} (${sizeMB} MB, ${duration}s)`);
 
-    global.backupProgress.step = 'Database backup complete!';
+    global.backupProgress.step = `Backup completed successfully! Packed ${packedFiles.length} media files and ${collections.length} tables.`;
     global.backupProgress.progress = 100;
     global.backupProgress.active = false;
     global.backupProgress.success = true;

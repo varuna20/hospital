@@ -102,17 +102,41 @@ router.post('/restore/:filename', async (req, res) => {
         await col.deleteMany({});
         await col.insertMany(docs.map(d => ({ ...d, _id: mongoose.Types.ObjectId.createFromHexString(d._id.$oid || d._id) })));
         restored += docs.length;
+    }
+
+    console.log('✅ Collection restore complete. Recreating upload media assets...');
+
+    // Restore uploads files recursively
+    let restoredFiles = 0;
+    if (backup.uploads && Array.isArray(backup.uploads)) {
+      const UPLOADS_DIR = path.join(__dirname, '../uploads');
+      for (let j = 0; j < backup.uploads.length; j++) {
+        const item = backup.uploads[j];
+        const pct = Math.floor(75 + ((j / backup.uploads.length) * 20)); // 75% to 95%
+        global.backupProgress.step = `Restoring upload asset (${j + 1}/${backup.uploads.length}): ${item.path}...`;
+        global.backupProgress.progress = pct;
+
+        const destPath = path.join(UPLOADS_DIR, item.path);
+        const destDir = path.dirname(destPath);
+        if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+        
+        try {
+          fs.writeFileSync(destPath, Buffer.from(item.content, 'base64'));
+          restoredFiles++;
+        } catch (e) {
+          console.warn(`Failed to write file ${destPath}:`, e.message);
+        }
       }
     }
 
-    console.log('✅ Restore complete:', restored, 'documents');
+    console.log(`✅ Restore complete: ${restored} documents, ${restoredFiles} upload assets`);
     
-    global.backupProgress.step = `Database restore complete! Successfully recovered ${restored} records.`;
+    global.backupProgress.step = `Restore complete! Successfully recovered ${restored} tables and ${restoredFiles} media/logo files.`;
     global.backupProgress.progress = 100;
     global.backupProgress.active = false;
     global.backupProgress.success = true;
 
-    res.json({ success: true, message: `Restored ${restored} documents from ${safe}` });
+    res.json({ success: true, message: `Restored ${restored} documents and ${restoredFiles} assets from ${safe}` });
   } catch (err) {
     console.error('Restore error:', err);
     
