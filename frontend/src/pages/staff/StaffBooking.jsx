@@ -267,16 +267,20 @@ export default function StaffBooking() {
               <label className="label">Select Date *</label>
               <div className="grid grid-cols-7 gap-1 mt-2">
                 {['S','M','T','W','T','F','S'].map((day,idx) => (
-                  <div key={idx} className="text-[10px] font-bold text-center opacity-30 py-1">{day}</div>
+                  <div key={`header-${idx}`} className="text-[10px] font-bold text-center opacity-30 py-1">{day}</div>
+                ))}
+                {Array.from({ length: moment().day() }).map((_, i) => (
+                  <div key={`empty-${i}`} />
                 ))}
                 {Array.from({ length: 28 }).map((_, i) => {
                   const d = moment().add(i, 'days');
                   const dStr = d.format('YYYY-MM-DD');
                   const isSelected = form.appointmentDate === dStr;
+                  const isToday = i === 0;
                   const status = getDayStatus(d);
                   
                   let bgColor = 'var(--color-surface2)';
-                  let borderColor = 'var(--color-border)';
+                  let borderColor = isToday ? 'rgba(255,255,255,0.3)' : 'var(--color-border)';
                   let dotColor = 'transparent';
 
                   if (status === 'available') {
@@ -293,12 +297,14 @@ export default function StaffBooking() {
                     <button key={dStr} type="button" onClick={() => setForm(f => ({ ...f, appointmentDate: dStr }))}
                       style={{
                         aspectRatio: '1/1', borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                        background: bgColor, border: `1.5px solid ${borderColor}`, cursor: 'pointer', transition: 'all 0.2s', position: 'relative', gap: 4
+                        background: isToday && !isSelected ? 'rgba(255,255,255,0.1)' : bgColor, border: `1.5px solid ${borderColor}`, cursor: 'pointer', transition: 'all 0.2s', position: 'relative', gap: 4
                       }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: isSelected ? 'white' : 'rgba(255,255,255,0.7)' }}>{d.format('D')}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: isSelected || isToday ? 'white' : 'rgba(255,255,255,0.7)' }}>{d.format('D')}</span>
+                      {isToday && <span style={{ fontSize: 8, fontWeight: 700, color: 'var(--color-primary)', marginTop: -4 }}>TDY</span>}
                       <div style={{ 
                         width: 6, height: 6, borderRadius: '50%', background: dotColor,
-                        boxShadow: dotColor !== 'transparent' ? `0 0 8px ${dotColor}` : 'none'
+                        boxShadow: dotColor !== 'transparent' ? `0 0 8px ${dotColor}` : 'none',
+                        marginTop: isToday ? 0 : 2
                       }}></div>
                       {isSelected && <div style={{ position: 'absolute', top: -4, right: -4, width: 14, height: 14, background: 'var(--color-primary)', borderRadius: '50%', border: '2px solid var(--color-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, color: 'black' }}>✓</div>}
                     </button>
