@@ -60,7 +60,7 @@ export default function PatientDashboard() {
         login(localStorage.getItem('token'), { ...user, ...profile });
       }
     } catch (err) {
-      toast.error('Failed to update profile');
+      toast.error(err.response?.data?.message || 'Failed to update profile');
     }
   };
 

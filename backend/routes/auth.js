@@ -286,14 +286,14 @@ router.put('/profile', protect, upload.single('avatar'), async (req, res) => {
       if (req.user.role === 'patient') {
         const cleanPhone = phone.replace(/[^0-9+]/g, '');
         if (cleanPhone && cleanPhone !== user.phone) {
-          // Find other patient account with the same phone in the same hospital
-          const otherPatient = await Patient.findOne({
+          // Find other patient accounts with the same phone in the same hospital
+          const otherPatients = await Patient.find({
             phone: cleanPhone,
             hospitalId: user.hospitalId,
             _id: { $ne: user._id }
           });
           
-          if (otherPatient) {
+          for (const otherPatient of otherPatients) {
             // Merge appointments
             const Appointment = require('../models/Appointment');
             await Appointment.updateMany({ patient: otherPatient._id }, { $set: { patient: user._id } });
