@@ -28,7 +28,13 @@ const protect = async (req, res, next) => {
     // Check User collection first (staff/doctor/admin/superadmin)
     let user = await User.findById(decoded.id)
       .populate('hospitalId', 'name shortName slug theme logo logoUrl isActive payment queueSettings whatsapp')
-      .populate('doctorProfile');
+      .populate({
+        path: 'doctorProfile',
+        populate: {
+          path: 'sessions.hospitalId',
+          select: 'name city'
+        }
+      });
 
     if (user) {
       if (!user.isActive)

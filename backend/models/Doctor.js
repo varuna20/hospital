@@ -20,7 +20,8 @@ const sessionSchema = new mongoose.Schema({
   isActive:  { type: Boolean, default: true },
   maxPatients: { type: Number, default: 30 },
   slotDuration: { type: Number, default: 15 },  // minutes per patient
-  sessionName: { type: String, default: 'Session 1' } // e.g. "Morning", "Evening", "Night"
+  sessionName: { type: String, default: 'Session 1' }, // e.g. "Morning", "Evening", "Night"
+  hospitalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hospital' }
 });
 
 const doctorSchema = new mongoose.Schema({
@@ -94,7 +95,8 @@ const doctorSchema = new mongoose.Schema({
   notificationSettings: {
     notifyReschedule: { type: Boolean, default: true },
     notifySessionSummary: { type: Boolean, default: true },
-    summaryLeadTimeMinutes: { type: Number, default: 60 } // 1 hour before
+    summaryLeadTimeMinutes: { type: Number, default: 60 }, // 1 hour before
+    summarySendTime: { type: String, default: "19:00" }
   }
 
 }, { timestamps: true });

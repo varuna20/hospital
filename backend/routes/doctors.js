@@ -36,6 +36,56 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 3 * 1024 * 1024 } });
 
+async function checkSessionOverlap(sessions) {
+  const active = sessions.filter(s => s.isActive !== false && s.startTime && s.endTime);
+  if (active.length === 0) return;
+
+  const parseTimeToMinutes = (timeStr) => {
+    if (!timeStr) return 0;
+    const [h, m] = timeStr.split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  };
+
+  const hospIds = [...new Set(active.map(s => s.hospitalId?.toString()).filter(Boolean))];
+  const hospitals = await Hospital.find({ _id: { $in: hospIds } });
+  
+  const getHospitalName = (hId) => {
+    if (!hId) return 'Unknown Hospital';
+    const found = hospitals.find(h => h._id.toString() === hId.toString());
+    return found ? found.name : 'Another Hospital';
+  };
+
+  const DAYS_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+  for (let i = 0; i < active.length; i++) {
+    const s1 = active[i];
+    const start1 = parseTimeToMinutes(s1.startTime);
+    const end1 = parseTimeToMinutes(s1.endTime);
+
+    if (start1 >= end1) {
+      throw new Error(`Session '${s1.sessionName}' has invalid time range: start time must be before end time.`);
+    }
+
+    for (let j = i + 1; j < active.length; j++) {
+      const s2 = active[j];
+      
+      if (s1.dayOfWeek === s2.dayOfWeek) {
+        const start2 = parseTimeToMinutes(s2.startTime);
+        const end2 = parseTimeToMinutes(s2.endTime);
+
+        if (start1 < end2 && start2 < end1) {
+          const dayName = DAYS_NAMES[s1.dayOfWeek] || `Day ${s1.dayOfWeek}`;
+          const hosp1Name = getHospitalName(s1.hospitalId);
+          const hosp2Name = getHospitalName(s2.hospitalId);
+          throw new Error(
+            `Scheduling conflict on ${dayName}: Session '${s1.sessionName}' (${s1.startTime}-${s1.endTime}) at ${hosp1Name} overlaps with Session '${s2.sessionName}' (${s2.startTime}-${s2.endTime}) at ${hosp2Name}.`
+          );
+        }
+      }
+    }
+  }
+}
+
 // ── Scope helper: get hospitalId from user or query ───────────────
 function getHospitalId(req) {
   if (req.user.role === 'superadmin') return req.query.hospitalId || req.body.hospitalId;
@@ -94,6 +144,17 @@ router.post('/', protect, authorize('admin', 'superadmin'), async (req, res) => 
       : [hospitalId || getHospitalId(req)].filter(Boolean);
     const primaryHospitalId = resolvedHospitalIds[0];
 
+    const finalSessions = (sessions || []).map(s => ({
+      ...s,
+      hospitalId: s.hospitalId || primaryHospitalId
+    }));
+
+    try {
+      await checkSessionOverlap(finalSessions);
+    } catch (err) {
+      return res.status(400).json({ success: false, message: err.message });
+    }
+
     // Create user account
     const user = await User.create({
       name, email,
@@ -114,7 +175,7 @@ router.post('/', protect, authorize('admin', 'superadmin'), async (req, res) => 
         hospitalCharge: fees?.hospitalCharge || 0,
         totalFee:       (fees?.doctorFee || 0) + (fees?.hospitalCharge || 0)
       },
-      sessions: sessions || []
+      sessions: finalSessions
     });
 
     user.doctorProfile = doctor._id;
@@ -160,6 +221,9 @@ router.put('/:id', protect, authorize('admin', 'superadmin'), async (req, res) =
         : (qualifications || '').split(',').map(q => q.trim()).filter(Boolean)
     };
 
+    const doctorBefore = await Doctor.findById(req.params.id);
+    if (!doctorBefore) return res.status(404).json({ success: false, message: 'Doctor not found' });
+
     if (Array.isArray(hospitalIds) && hospitalIds.length > 0) {
       update.hospitalIds = hospitalIds;
       update.hospitalId = hospitalIds[0];
@@ -168,7 +232,26 @@ router.put('/:id', protect, authorize('admin', 'superadmin'), async (req, res) =
       update.hospitalIds = [hospitalId];
     }
 
-    if (sessions) update.sessions = sessions;
+    if (sessions) {
+      let finalSessions = [];
+      if (req.user.role === 'superadmin') {
+        finalSessions = sessions.map(s => ({ ...s, hospitalId: s.hospitalId || doctorBefore.hospitalId }));
+      } else {
+        const currentHospId = getHospitalId(req);
+        if (!currentHospId) return res.status(400).json({ success: false, message: 'Hospital context required' });
+        
+        const otherSessions = doctorBefore.sessions.filter(s => s.hospitalId && s.hospitalId.toString() !== currentHospId);
+        const updatedIncoming = sessions.map(s => ({ ...s, hospitalId: currentHospId }));
+        finalSessions = [...otherSessions, ...updatedIncoming];
+      }
+
+      try {
+        await checkSessionOverlap(finalSessions);
+      } catch (err) {
+        return res.status(400).json({ success: false, message: err.message });
+      }
+      update.sessions = finalSessions;
+    }
 
     if (fees) {
       update['fees.doctorFee']      = Number(fees.doctorFee || 0);
@@ -176,7 +259,6 @@ router.put('/:id', protect, authorize('admin', 'superadmin'), async (req, res) =
       update['fees.totalFee']       = Number(fees.doctorFee || 0) + Number(fees.hospitalCharge || 0);
     }
 
-    const doctorBefore = await Doctor.findById(req.params.id);
     const doctor = await Doctor.findByIdAndUpdate(
       req.params.id,
       { $set: update },
@@ -210,6 +292,32 @@ router.put('/:id', protect, authorize('admin', 'superadmin'), async (req, res) =
     }
 
     res.json({ success: true, doctor });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── Clear All Sessions (superadmin only) ──────────────────────────
+router.put('/:id/clear-sessions', protect, authorize('superadmin'), async (req, res) => {
+  try {
+    const doctor = await Doctor.findByIdAndUpdate(
+      req.params.id,
+      { $set: { sessions: [] } },
+      { new: true }
+    );
+    if (!doctor) return res.status(404).json({ success: false, message: 'Doctor not found' });
+    
+    // Audit log
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req, {
+      action: 'CLEAR_DOCTOR_SCHEDULE',
+      targetType: 'Doctor',
+      targetId: doctor._id,
+      targetName: doctor.name,
+      newValues: { sessions: [] }
+    });
+
+    res.json({ success: true, message: `All sessions cleared for Dr. ${doctor.name}`, doctor });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -254,10 +362,31 @@ router.put('/:id/session', protect, authorize('staff', 'admin', 'superadmin'), a
     if (sessionEnd)   update['todayStatus.sessionEnd']   = sessionEnd;
     if (sessionNotes) update['todayStatus.sessionNotes'] = sessionNotes;
 
-    // Full weekly schedule update
-    if (sessions) update.sessions = sessions;
-
     const doctorBefore = await Doctor.findById(req.params.id);
+    if (!doctorBefore) return res.status(404).json({ success: false, message: 'Doctor not found' });
+
+    // Full weekly schedule update
+    if (sessions) {
+      let finalSessions = [];
+      if (req.user.role === 'superadmin') {
+        finalSessions = sessions.map(s => ({ ...s, hospitalId: s.hospitalId || doctorBefore.hospitalId }));
+      } else {
+        const currentHospId = getHospitalId(req);
+        if (!currentHospId) return res.status(400).json({ success: false, message: 'Hospital context required' });
+        
+        const otherSessions = doctorBefore.sessions.filter(s => s.hospitalId && s.hospitalId.toString() !== currentHospId);
+        const updatedIncoming = sessions.map(s => ({ ...s, hospitalId: currentHospId }));
+        finalSessions = [...otherSessions, ...updatedIncoming];
+      }
+
+      try {
+        await checkSessionOverlap(finalSessions);
+      } catch (err) {
+        return res.status(400).json({ success: false, message: err.message });
+      }
+      update.sessions = finalSessions;
+    }
+
     const doctor = await Doctor.findByIdAndUpdate(req.params.id, { $set: update }, { new: true });
 
     // Audit log
@@ -590,8 +719,16 @@ router.get('/:id/calendar-counts', async (req, res) => {
       { $group: { 
         _id: { date: { $dateToString: { format: "%Y-%m-%d", date: "$appointmentDate" } }, sessionId: "$sessionId" }, 
         count: { $sum: 1 },
-        label: { $first: "$sessionLabel" }
-      } }
+        label: { $first: "$sessionLabel" },
+        hospitalId: { $first: "$hospitalId" }
+      } },
+      { $lookup: {
+        from: 'hospitals',
+        localField: 'hospitalId',
+        foreignField: '_id',
+        as: 'hospital'
+      } },
+      { $unwind: { path: '$hospital', preserveNullAndEmptyArrays: true } }
     ]);
 
     res.json({ success: true, counts });

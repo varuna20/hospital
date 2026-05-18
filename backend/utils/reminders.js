@@ -91,10 +91,13 @@ async function processFollowUpReminders() {
 }
 
 async function processDoctorSessionSummaries() {
-  console.log('⏳ Checking for upcoming doctor sessions...');
+  console.log('⏳ Checking for doctor session notifications and summaries...');
   try {
     const Appointment = require('../models/Appointment');
     const now = moment();
+    const currentHour = now.hour();
+    const currentMin = now.minute();
+    const currentMinutes = currentHour * 60 + currentMin;
     
     // Find all active doctors
     const doctors = await Doctor.find({ isActive: true }).populate('hospitalId');
@@ -104,9 +107,56 @@ async function processDoctorSessionSummaries() {
       
       const leadTime = doc.notificationSettings.summaryLeadTimeMinutes || 60;
       const today = moment().startOf('day').toDate();
+      const todayEnd = moment().endOf('day').toDate();
       const dayOfWeek = moment().day();
+
+      // ─── PART 1: Given Daily Summary Time Check ──────────────────
+      const docSendTime = doc.notificationSettings?.summarySendTime || "19:00";
+      const [sendHour, sendMin] = docSendTime.split(':').map(Number);
+      const targetMinutes = sendHour * 60 + sendMin;
+
+      // Check if we are inside the 10 min window of the daily summary send time
+      if (currentMinutes >= targetMinutes && currentMinutes < targetMinutes + 10) {
+        const appointments = await Appointment
+          .find({ doctor: doc._id, appointmentDate: { $gte: today, $lte: todayEnd } })
+          .populate('patient', 'name phone');
+
+        const completedApts = appointments.filter(a => a.status === 'completed');
+        const totalChecked = completedApts.length;
+        const totalRevenue = completedApts.reduce((sum, a) => sum + (a.fees?.doctorFee || 0), 0);
+        const totalBooked = appointments.length;
+
+        const currency = doc.hospitalId?.payment?.currencySymbol || 'Rs.';
+        const hospitalName = doc.hospitalId?.shortName || doc.hospitalId?.name || 'Hospital';
+        const frontendUrl = process.env.FRONTEND_URL || 'https://echanneling-hospital.live';
+        const loginLink = `${frontendUrl}/login`;
+
+        const smsMessage = 
+          `Daily Summary: ${hospitalName}\n` +
+          `Dear Dr. ${doc.name},\n` +
+          `Here is a summary of your sessions today:\n` +
+          `📅 Total Booked: ${totalBooked}\n` +
+          `✅ Patients Checked: ${totalChecked}\n` +
+          `💰 Total Doctor Revenue: ${currency} ${totalRevenue.toLocaleString()}\n` +
+          `🔗 Portal Login: ${loginLink}`;
+
+        // SMS
+        sendHospitalSms({
+          hospitalId: doc.hospitalId?._id,
+          to: doc.phone,
+          message: smsMessage
+        }).catch(err => console.error('Daily Doctor SMS summary failed:', err));
+
+        // WhatsApp
+        if (doc.hospitalId?.whatsapp?.enabled) {
+          const { sendCustomMessage } = require('./whatsapp');
+          sendCustomMessage(doc.hospitalId, { phone: doc.phone, name: doc.name }, smsMessage).catch(() => {});
+        }
+
+        console.log(`✅ Sent today's daily session summary to Dr. ${doc.name} at ${docSendTime}`);
+      }
       
-      // Check doc sessions for today
+      // ─── PART 2: Upcoming Session Lead Time Reminder ─────────────
       const sessions = (doc.sessions || []).filter(s => s.dayOfWeek === dayOfWeek && s.isActive);
       
       for (const s of sessions) {
@@ -120,9 +170,6 @@ async function processDoctorSessionSummaries() {
         const diff = sessionStart.diff(now, 'minutes');
         
         if (diff > leadTime - 10 && diff <= leadTime) {
-          // Check if already sent (to avoid duplicates if cron runs often)
-          // We can use a temporary flag or just assume cron runs every 10 min
-          
           const patientCount = await Appointment.countDocuments({
             doctor: doc._id,
             appointmentDate: today,
@@ -146,7 +193,7 @@ async function processDoctorSessionSummaries() {
             sendCustomMessage(doc.hospitalId, { phone: doc.phone, name: doc.name }, msg).catch(() => {});
           }
           
-          console.log(`✅ Sent session summary to Dr. ${doc.name} (${patientCount} patients)`);
+          console.log(`✅ Sent upcoming session lead reminder to Dr. ${doc.name} (${patientCount} patients)`);
         }
       }
     }

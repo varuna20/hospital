@@ -78,6 +78,7 @@ export default function DoctorDashboard() {
   const [stats, setStats] = useState(null);
   const [apts, setApts] = useState([]);
   const [refunds, setRefunds] = useState([]);
+  const [hospitalsList, setHospitalsList] = useState([]);
   const [selSession, setSelSession] = useState('');
   const [loading, setLoading] = useState(true);
   const sym = hospital?.payment?.currencySymbol || 'Rs.';
@@ -89,14 +90,16 @@ export default function DoctorDashboard() {
       let url = '/appointments/today/' + doctorId;
       if (selSession) url += `?sessionId=${selSession}`;
       
-      const [s, a, r] = await Promise.all([
+      const [s, a, r, h] = await Promise.all([
         api.get('/doctors/' + doctorId + '/stats'),
         api.get(url),
         api.get('/appointments/refunds/pending'),
+        api.get('/hospitals'),
       ]);
       setStats(s.data);
       setApts(a.data.appointments || []);
       setRefunds(r.data.refunds || []);
+      setHospitalsList(h.data.hospitals || []);
     } catch {}
     finally { setLoading(false); }
   }, [doctorId, selSession]);
@@ -287,6 +290,50 @@ export default function DoctorDashboard() {
           </div>
         </div>
       )}
+
+      {/* Consulting Schedule */}
+      <div className="card mb-5">
+        <div className="px-5 py-4 border-b flex items-center justify-between -mx-5 -mt-5 mb-4" style={{ borderColor:'var(--color-border)' }}>
+          <h3 className="section-title text-sm mb-0">🏥 Weekly Consulting Schedule & Locations</h3>
+          <span className="text-xs" style={{ color:'var(--color-text-muted)' }}>{(user?.doctorProfile?.sessions || []).length} total sessions</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+          {user?.doctorProfile?.sessions && user.doctorProfile.sessions.length > 0 ? (
+            [...user.doctorProfile.sessions]
+              .sort((a,b) => a.dayOfWeek - b.dayOfWeek || a.startTime.localeCompare(b.startTime))
+              .map((s, idx) => {
+                const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][s.dayOfWeek];
+                const sessHospId = s.hospitalId?._id || s.hospitalId;
+                const resolvedHosp = (typeof s.hospitalId === 'object' && s.hospitalId !== null && s.hospitalId.name ? s.hospitalId : null) ||
+                                     hospitalsList.find(h => h._id?.toString() === sessHospId?.toString());
+                const sessionHospName = resolvedHosp?.name || hospital?.name || 'Assigned Hospital';
+                const sessionHospCity = resolvedHosp?.city || hospital?.city || '';
+                
+                return (
+                  <div key={idx} className="p-3 rounded-xl border flex flex-col justify-between" style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface2)' }}>
+                    <div>
+                      <div className="flex justify-between items-start gap-2 mb-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-primary">{dayName}</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 font-semibold text-white/50">{s.sessionName}</span>
+                      </div>
+                      <p className="font-bold text-white text-xs mb-1">⏰ {s.startTime} - {s.endTime}</p>
+                      <p className="text-[11px] text-white/95 font-bold truncate">🏥 {sessionHospName}</p>
+                      {sessionHospCity && (
+                        <p className="text-[9px]" style={{ color: 'var(--color-text-muted)' }}>Location: {sessionHospCity}</p>
+                      )}
+                    </div>
+                    <div className="mt-2 pt-2 border-t flex justify-between items-center text-[9px] text-white/40" style={{ borderColor: 'var(--color-border)' }}>
+                      <span>Max Pts: {s.maxPatients}</span>
+                      <span>Slot: {s.slotDuration}m</span>
+                    </div>
+                  </div>
+                );
+              })
+          ) : (
+            <p className="text-xs text-white/50 italic col-span-full text-center py-4">No consulting sessions defined yet.</p>
+          )}
+        </div>
+      </div>
 
       {/* Queue table */}
       <div className="card overflow-hidden p-0">

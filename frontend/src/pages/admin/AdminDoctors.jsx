@@ -110,6 +110,7 @@ function DoctorForm({ doctor: editDoc, onSave, onCancel }) {
     fees:{ doctorFee:0, hospitalCharge: hospital?.payment?.defaultHospitalCharge||500 },
     sessions: defaultSessions, isActive:true
   });
+  const [allSessions, setAllSessions] = useState([]);
   const [loading, setLoading] = useState(false);
 
   // Load full doctor data when editing
@@ -118,13 +119,21 @@ function DoctorForm({ doctor: editDoc, onSave, onCancel }) {
     api.get('/doctors/' + editDoc._id).then(({ data }) => {
       if (!data.success) return;
       const d = data.doctor;
+      const adminHospId = hospital?._id || hospital;
+      const docSessions = d.sessions?.length ? d.sessions : defaultSessions;
+      
+      setAllSessions(docSessions);
+
+      // Filter sessions belonging to this hospital only, or sessions that don't have a hospitalId
+      const localSessions = docSessions.filter(s => !s.hospitalId || s.hospitalId.toString() === adminHospId.toString());
+
       setForm({
         name: d.name||'', email: d.email||'', phone: d.phone||'',
         specialization: d.specialization||'',
         qualifications: (d.qualifications||[]).join(', '),
         experience: d.experience||'', bio: d.bio||'', room: d.room||'', avgConsultMinutes: d.avgConsultMinutes || 5,
         fees: { doctorFee: d.fees?.doctorFee||0, hospitalCharge: d.fees?.hospitalCharge||0 },
-        sessions: d.sessions?.length ? d.sessions : defaultSessions,
+        sessions: localSessions,
         isActive: d.isActive !== false,
         notificationSettings: d.notificationSettings || { notifyReschedule: true, notifySessionSummary: true, summaryLeadTimeMinutes: 60 }
       });
@@ -139,12 +148,18 @@ function DoctorForm({ doctor: editDoc, onSave, onCancel }) {
     if (!form.name||!form.specialization) { toast.error('Name and specialization required'); return; }
     setLoading(true);
     try {
+      const adminHospId = hospital?._id || hospital;
+      const otherSessions = allSessions.filter(s => s.hospitalId && s.hospitalId.toString() !== adminHospId.toString());
+      const updatedLocalSessions = form.sessions.map(s => ({ ...s, hospitalId: adminHospId }));
+
       const payload = {
         ...form,
         qualifications: typeof form.qualifications==='string'
           ? form.qualifications.split(',').map(q=>q.trim()).filter(Boolean)
-          : form.qualifications
+          : form.qualifications,
+        sessions: [...otherSessions, ...updatedLocalSessions]
       };
+
       if (isEdit) {
         await api.put('/doctors/'+editDoc._id, payload);
         toast.success('Doctor profile saved!');
@@ -220,11 +235,19 @@ function DoctorForm({ doctor: editDoc, onSave, onCancel }) {
                 onChange={e => set('notificationSettings', {...(form.notificationSettings||{}), notifySessionSummary: e.target.checked})} />
             </div>
             {form.notificationSettings?.notifySessionSummary !== false && (
-              <div>
-                <label className="label">Summary Lead Time (mins)</label>
-                <input type="number" className="input" 
-                  value={form.notificationSettings?.summaryLeadTimeMinutes || 60} 
-                  onChange={e => set('notificationSettings', {...(form.notificationSettings||{}), summaryLeadTimeMinutes: Number(e.target.value)})} />
+              <div className="space-y-3 pt-2">
+                <div>
+                  <label className="label">Summary Lead Time (mins)</label>
+                  <input type="number" className="input" 
+                    value={form.notificationSettings?.summaryLeadTimeMinutes || 60} 
+                    onChange={e => set('notificationSettings', {...(form.notificationSettings||{}), summaryLeadTimeMinutes: Number(e.target.value)})} />
+                </div>
+                <div>
+                  <label className="label">Daily SMS Summary Send Time (HH:MM)</label>
+                  <input type="time" className="input" 
+                    value={form.notificationSettings?.summarySendTime || '19:00'} 
+                    onChange={e => set('notificationSettings', {...(form.notificationSettings||{}), summarySendTime: e.target.value})} />
+                </div>
               </div>
             )}
           </div>
@@ -487,15 +510,40 @@ function DoctorCard({ doctor, hospitalId, onEdit }) {
           ))}
         </div>
 
-        {/* Schedule days */}
-        <div className="flex flex-wrap gap-1 mb-3">
-          {DAYS.map((d,i)=>{
-            const s = (doctor.sessions||[]).find(x=>x.dayOfWeek===i&&x.isActive);
-            return <span key={d} className="text-xs px-2 py-0.5 rounded"
-              style={{ background:s?'rgba(var(--color-primary-rgb),0.15)':'var(--color-surface2)', color:s?'var(--color-primary)':'var(--color-text-muted)' }}>
-              {d.slice(0,3)}{s?` ${s.startTime}`:''}
-            </span>;
-          })}
+        {/* Doctor Sessions grouped by Hospital */}
+        <div className="mt-3 border-t pt-2 mb-3" style={{ borderColor: 'var(--color-border)' }}>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-primary mb-1.5">📅 Consulting Sessions per Hospital:</p>
+          {doctor.sessions && doctor.sessions.length > 0 ? (
+            <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1">
+              {(doctor.hospitalIds && doctor.hospitalIds.length > 0 ? doctor.hospitalIds : [doctor.hospitalId]).filter(Boolean).map(h => {
+                const hId = h._id || h;
+                const hName = h.name || 'Consulting Location';
+                const hospSessions = doctor.sessions.filter(s => (s.hospitalId?._id || s.hospitalId)?.toString() === hId.toString());
+                
+                if (hospSessions.length === 0) return null;
+                
+                const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                
+                return (
+                  <div key={hId} className="p-2 rounded-xl bg-white/5 border border-white/10">
+                    <p className="text-[10px] font-black text-white flex items-center gap-1">
+                      🏥 {hName}
+                    </p>
+                    <div className="grid grid-cols-2 gap-1.5 mt-1">
+                      {hospSessions.map((s, idx) => (
+                        <div key={idx} className="text-[9px] p-1.5 rounded-lg bg-white/5 border border-white/5 flex flex-col">
+                          <span className="font-extrabold text-primary">{DAYS_SHORT[s.dayOfWeek]} · {s.sessionName}</span>
+                          <span className="text-white/60 font-medium mt-0.5">{s.startTime} - {s.endTime}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-[10px] text-muted italic">No consulting sessions defined.</p>
+          )}
         </div>
 
         {/* Display URL */}

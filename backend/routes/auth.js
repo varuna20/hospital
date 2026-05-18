@@ -39,7 +39,13 @@ router.post('/login', async (req, res) => {
     const user = await User.findOne({ email: email.toLowerCase().trim() })
       .select('+password')
       .populate('hospitalId', 'name shortName theme slug logo logoUrl isActive payment queueSettings whatsapp')
-      .populate('doctorProfile');
+      .populate({
+        path: 'doctorProfile',
+        populate: {
+          path: 'sessions.hospitalId',
+          select: 'name city'
+        }
+      });
 
     if (!user || !(await user.comparePassword(password)))
       return res.status(401).json({ success: false, message: 'Invalid email or password' });
@@ -337,7 +343,15 @@ router.put('/profile', protect, upload.single('avatar'), async (req, res) => {
     if (req.user.role === 'patient') {
       updatedUser = await Patient.findById(user._id);
     } else {
-      updatedUser = await User.findById(user._id).populate('hospitalId').populate('doctorProfile');
+      updatedUser = await User.findById(user._id)
+        .populate('hospitalId')
+        .populate({
+          path: 'doctorProfile',
+          populate: {
+            path: 'sessions.hospitalId',
+            select: 'name city'
+          }
+        });
     }
 
     res.json({ success: true, message: 'Profile updated', user: updatedUser });
@@ -360,7 +374,13 @@ router.get('/me', protect, async (req, res) => {
     // Staff/Doctor/Admin flow
     const user = await User.findById(req.user._id)
       .populate('hospitalId', 'name theme slug logo logoUrl payment queueSettings whatsapp clinicHours')
-      .populate('doctorProfile');
+      .populate({
+        path: 'doctorProfile',
+        populate: {
+          path: 'sessions.hospitalId',
+          select: 'name city'
+        }
+      });
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
     res.json({ success: true, user: { ...user.toObject(), password: undefined } });
   } catch (err) {

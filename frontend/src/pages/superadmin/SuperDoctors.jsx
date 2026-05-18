@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { DAYS } from '../../utils/helpers';
 
 // ─── Session schedule editor for Doctors (Fully Responsive) ───────
-function SessionEditor({ sessions, onChange }) {
+function SessionEditor({ sessions, onChange, hospitals, defaultHospitalId }) {
   const sessionsByDay = DAYS.map((_, i) => sessions.filter(s => s.dayOfWeek === i));
 
   const addSession = (dayIdx) => {
@@ -19,7 +19,8 @@ function SessionEditor({ sessions, onChange }) {
       isActive: true, 
       slotDuration: 15, 
       maxPatients: 30,
-      sessionName: sessionsByDay[dayIdx].length === 0 ? 'Morning' : sessionsByDay[dayIdx].length === 1 ? 'Afternoon' : 'Evening'
+      sessionName: sessionsByDay[dayIdx].length === 0 ? 'Morning' : sessionsByDay[dayIdx].length === 1 ? 'Afternoon' : 'Evening',
+      hospitalId: defaultHospitalId || ''
     };
     onChange([...sessions, newSession]);
   };
@@ -66,6 +67,21 @@ function SessionEditor({ sessions, onChange }) {
                 >✕</button>
                 
                 <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <label className="label">Assigned Hospital *</label>
+                    <select 
+                      className="input" 
+                      style={{ padding:'4px 8px', fontSize:'12px' }}
+                      value={s.hospitalId?._id || s.hospitalId || ''}
+                      onChange={e => updateSession(dayIdx, sIdx, 'hospitalId', e.target.value)}
+                      required
+                    >
+                      <option value="">-- Choose Hospital --</option>
+                      {hospitals.map(h => (
+                        <option key={h._id} value={h._id}>{h.name}</option>
+                      ))}
+                    </select>
+                  </div>
                   <div className="col-span-2">
                     <label className="label">Session Name</label>
                     <input className="input" style={{ padding:'4px 8px', fontSize:'12px' }}
@@ -114,7 +130,13 @@ function DoctorForm({ doctor: editDoc, hospitals, onSave, onCancel }) {
       doctorFee: editDoc?.fees?.doctorFee || 0,
       hospitalCharge: editDoc?.fees?.hospitalCharge || 0
     },
-    sessions: editDoc?.sessions || []
+    sessions: editDoc?.sessions || [],
+    notificationSettings: editDoc?.notificationSettings || {
+      notifyReschedule: true,
+      notifySessionSummary: true,
+      summaryLeadTimeMinutes: 60,
+      summarySendTime: '19:00'
+    }
   });
 
   const submit = async (e) => {
@@ -346,15 +368,117 @@ function DoctorForm({ doctor: editDoc, hospitals, onSave, onCancel }) {
               onChange={e => setForm(p => ({ ...p, bio: e.target.value }))}
             />
           </div>
+
+          <div className="md:col-span-2 border-t pt-4 mt-2" style={{ borderColor: 'var(--color-border)' }}>
+            <p className="text-xs font-bold uppercase tracking-wider mb-3 text-primary">🔔 Notification Settings</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                <div>
+                  <p className="text-xs font-bold text-white">Reschedule Alerts</p>
+                  <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>Notify when sessions move</p>
+                </div>
+                <input
+                  type="checkbox"
+                  className="w-5 h-5 accent-primary"
+                  checked={form.notificationSettings?.notifyReschedule !== false}
+                  onChange={e => setForm(p => ({
+                    ...p,
+                    notificationSettings: { ...(p.notificationSettings || {}), notifyReschedule: e.target.checked }
+                  }))}
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                <div>
+                  <p className="text-xs font-bold text-white">Session Summary Alerts</p>
+                  <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>Notify daily summaries</p>
+                </div>
+                <input
+                  type="checkbox"
+                  className="w-5 h-5 accent-primary"
+                  checked={form.notificationSettings?.notifySessionSummary !== false}
+                  onChange={e => setForm(p => ({
+                    ...p,
+                    notificationSettings: { ...(p.notificationSettings || {}), notifySessionSummary: e.target.checked }
+                  }))}
+                />
+              </div>
+
+              {form.notificationSettings?.notifySessionSummary !== false && (
+                <>
+                  <div>
+                    <label className="label">Summary Lead Time (mins)</label>
+                    <input
+                      type="number"
+                      className="input"
+                      value={form.notificationSettings?.summaryLeadTimeMinutes || 60}
+                      onChange={e => setForm(p => ({
+                        ...p,
+                        notificationSettings: { ...(p.notificationSettings || {}), summaryLeadTimeMinutes: Number(e.target.value) }
+                      }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Daily SMS Summary Send Time (HH:MM) *</label>
+                    <input
+                      type="time"
+                      className="input"
+                      value={form.notificationSettings?.summarySendTime || '19:00'}
+                      onChange={e => setForm(p => ({
+                        ...p,
+                        notificationSettings: { ...(p.notificationSettings || {}), summarySendTime: e.target.value }
+                      }))}
+                      required
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
       {activeTab === 'schedule' && (
         <div className="mb-4">
-          <p className="text-xs text-white/50 mb-3">Define recurrent consulting sessions for this doctor.</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-white/50">Define recurrent consulting sessions for this doctor.</p>
+            {isEdit && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (window.confirm(`Are you absolutely sure you want to permanently clear all recurring sessions for Dr. ${form.name}? This action cannot be undone.`)) {
+                    try {
+                      const { data } = await api.put(`/doctors/${editDoc._id}/clear-sessions`);
+                      if (data.success) {
+                        toast.success('All sessions cleared successfully!');
+                        setForm(p => ({ ...p, sessions: [] }));
+                      }
+                    } catch (err) {
+                      toast.error(err.response?.data?.message || 'Failed to clear sessions');
+                    }
+                  }
+                }}
+                className="text-xs px-3 py-1.5 rounded-lg transition-all font-bold"
+                style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }}
+              >
+                🗑 Clear All Sessions
+              </button>
+            )}
+          </div>
           <SessionEditor
             sessions={form.sessions}
-            onChange={updatedSessions => setForm(p => ({ ...p, sessions: updatedSessions }))}
+            hospitals={hospitals}
+            defaultHospitalId={form.hospitalId}
+            onChange={updatedSessions => {
+              const sessionHospIds = updatedSessions.map(s => s.hospitalId).filter(Boolean);
+              const unionIds = [...new Set([...form.hospitalIds, ...sessionHospIds])];
+              setForm(p => ({
+                ...p,
+                sessions: updatedSessions,
+                hospitalIds: unionIds,
+                hospitalId: unionIds[0] || p.hospitalId
+              }));
+            }}
           />
         </div>
       )}
@@ -550,6 +674,42 @@ export default function SuperDoctors() {
                     <p>📞 {doc.phone || 'N/A'}</p>
                     {doc.room && <p>🚪 Room: {doc.room}</p>}
                     <p>💰 Fee: Rs. {doc.fees?.doctorFee || 0} (+ Rs. {doc.fees?.hospitalCharge || 0} Hospital Fee)</p>
+                  </div>
+
+                  {/* Doctor Sessions grouped by Hospital */}
+                  <div className="mt-3 border-t pt-2" style={{ borderColor: 'var(--color-border)' }}>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-primary mb-1.5">📅 Consulting Sessions per Hospital:</p>
+                    {doc.sessions && doc.sessions.length > 0 ? (
+                      <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1">
+                        {(doc.hospitalIds && doc.hospitalIds.length > 0 ? doc.hospitalIds : [doc.hospitalId]).filter(Boolean).map(h => {
+                          const hId = h._id || h;
+                          const hName = h.name || (hospitals.find(x => x._id === hId.toString())?.name) || 'Consulting Location';
+                          const hospSessions = doc.sessions.filter(s => (s.hospitalId?._id || s.hospitalId)?.toString() === hId.toString());
+                          
+                          if (hospSessions.length === 0) return null;
+                          
+                          const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                          
+                          return (
+                            <div key={hId} className="p-2 rounded-xl bg-white/5 border border-white/10">
+                              <p className="text-[10px] font-black text-white flex items-center gap-1">
+                                🏥 {hName}
+                              </p>
+                              <div className="grid grid-cols-2 gap-1.5 mt-1">
+                                {hospSessions.map((s, idx) => (
+                                  <div key={idx} className="text-[9px] p-1.5 rounded-lg bg-white/5 border border-white/5 flex flex-col">
+                                    <span className="font-extrabold text-primary">{DAYS_SHORT[s.dayOfWeek]} · {s.sessionName}</span>
+                                    <span className="text-white/60 font-medium mt-0.5">{s.startTime} - {s.endTime}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-muted italic">No consulting sessions defined.</p>
+                    )}
                   </div>
                 </div>
 

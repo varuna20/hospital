@@ -7,7 +7,9 @@ import moment from 'moment';
 export default function DoctorCalendar() {
   const { user, hospital } = useAuth();
   const [counts, setCounts] = useState([]);
+  const [hospitalsList, setHospitalsList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(moment().format('YYYY-MM-DD'));
   const [showRequest, setShowRequest] = useState(false);
   const [selDay, setSelDay] = useState(null);
   const [request, setRequest] = useState({ type: 'cancel', reason: '', proposedDate: '' });
@@ -17,8 +19,12 @@ export default function DoctorCalendar() {
   const load = useCallback(async () => {
     if (!doctorId) return;
     try {
-      const { data } = await api.get(`/doctors/${doctorId}/calendar-counts`);
-      setCounts(data.counts || []);
+      const [countsRes, hospRes] = await Promise.all([
+        api.get(`/doctors/${doctorId}/calendar-counts`),
+        api.get('/hospitals')
+      ]);
+      setCounts(countsRes.data.counts || []);
+      setHospitalsList(hospRes.data.hospitals || []);
     } catch {} finally { setLoading(false); }
   }, [doctorId]);
 
@@ -29,8 +35,30 @@ export default function DoctorCalendar() {
     days.push(moment().add(i, 'days'));
   }
 
-  const getDayCounts = (dateStr) => {
-    return counts.filter(c => c._id.date === dateStr);
+  const getDaySessions = (dateStr) => {
+    const dayOfWeek = moment(dateStr).day();
+    const docSessions = user?.doctorProfile?.sessions || [];
+    const dayCounts = counts.filter(c => c._id.date === dateStr);
+
+    const activeSessions = docSessions.filter(s => s.dayOfWeek === dayOfWeek);
+
+    return activeSessions.map(session => {
+      const sessHospId = session.hospitalId?._id || session.hospitalId;
+      const matchCount = dayCounts.find(c => c._id.hospitalId?.toString() === sessHospId?.toString());
+      
+      const resolvedHosp = matchCount?.hospital || 
+                           (typeof session.hospitalId === 'object' && session.hospitalId !== null && session.hospitalId.name ? session.hospitalId : null) ||
+                           hospitalsList.find(h => h._id?.toString() === sessHospId?.toString());
+
+      return {
+        _id: session._id,
+        sessionName: session.sessionName || 'Session',
+        startTime: session.startTime,
+        endTime: session.endTime,
+        hospital: resolvedHosp,
+        count: matchCount ? matchCount.count : 0
+      };
+    });
   };
 
   const submitRequest = async () => {
@@ -48,6 +76,8 @@ export default function DoctorCalendar() {
     } catch { toast.error('Failed to send request'); }
   };
 
+  const selectedDaySessions = getDaySessions(selectedDate);
+
   return (
     <div className="max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-8">
@@ -61,11 +91,20 @@ export default function DoctorCalendar() {
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
         {days.map((day, i) => {
           const dateStr = day.format('YYYY-MM-DD');
-          const dayCounts = getDayCounts(dateStr);
+          const daySessions = getDaySessions(dateStr);
           const isToday = i === 0;
+          const isSelected = selectedDate === dateStr;
 
           return (
-            <div key={dateStr} className={`card p-3 flex flex-col min-h-[140px] transition-all hover:border-primary/50 cursor-default ${day.day() === 0 ? 'bg-red-500/5 border-red-500/20' : ''}`}>
+            <div 
+              key={dateStr} 
+              onClick={() => setSelectedDate(dateStr)}
+              className={`card p-3 flex flex-col min-h-[150px] transition-all cursor-pointer ${
+                isSelected 
+                  ? 'border-primary ring-2 ring-primary/20 bg-primary/5' 
+                  : 'hover:border-primary/50'
+              } ${day.day() === 0 ? 'bg-red-500/5 border-red-500/20' : ''}`}
+            >
               <div className="flex justify-between items-start mb-2">
                 <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isToday ? 'bg-primary text-white' : 'bg-white/5 text-muted'}`}>
                   {day.format('D')}
@@ -74,21 +113,85 @@ export default function DoctorCalendar() {
               </div>
               
               <div className="flex-1 space-y-1">
-                {dayCounts.length > 0 ? dayCounts.map(c => (
-                  <div key={c._id.sessionId} className="group relative">
-                    <button onClick={() => { setSelDay({ date: dateStr, ...c._id, sessionLabel: c.label }); setShowRequest(true); }}
-                      className="w-full text-left p-1.5 rounded-lg bg-primary/10 border border-primary/20 hover:bg-primary/20 transition-all">
-                      <p className="text-[10px] font-bold text-primary truncate">{c.label || 'Session'}</p>
-                      <p className="text-xs font-black text-white">{c.count} Booked</p>
-                    </button>
+                {daySessions.length > 0 ? daySessions.map((s, idx) => (
+                  <div key={idx} className="group relative">
+                    <div className="w-full text-left p-1.5 rounded-lg bg-primary/10 border border-primary/20 hover:bg-primary/20 transition-all">
+                      <p className="text-[10px] font-bold text-primary truncate">{s.sessionName}</p>
+                      <p className="text-[9px] truncate text-white/60 font-semibold">
+                        🏥 {s.hospital?.shortName || s.hospital?.name || 'Hospital'}
+                      </p>
+                      <p className="text-xs font-black text-white mt-0.5">{s.count} Booked</p>
+                    </div>
                   </div>
                 )) : (
-                  <p className="text-[10px] text-muted italic text-center mt-4">No bookings</p>
+                  <p className="text-[10px] text-muted italic text-center mt-4">Off Day</p>
                 )}
               </div>
             </div>
           );
         })}
+      </div>
+
+      {/* Selected Day Details Section */}
+      <div className="card mt-6 border-2" style={{ borderColor: 'var(--color-primary)' }}>
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-4 pb-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
+          <div>
+            <h2 className="section-title text-base mb-0">📅 Scheduled Sessions on {moment(selectedDate).format('dddd, MMMM D, YYYY')}</h2>
+            <p className="text-xs text-muted">Click any date on the calendar above to view its sessions.</p>
+          </div>
+          <span className="text-xs font-bold px-3 py-1 rounded-full bg-primary/10 text-primary">
+            {selectedDaySessions.length} active sessions
+          </span>
+        </div>
+
+        {selectedDaySessions.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {selectedDaySessions.map((s, idx) => {
+              const hospName = s.hospital?.name || hospital?.name || 'Assigned Hospital';
+              const hospCity = s.hospital?.city || hospital?.city || '';
+              const timeStr = `${s.startTime} - ${s.endTime}`;
+
+              return (
+                <div key={idx} className="p-4 rounded-xl border flex flex-col justify-between" style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface2)' }}>
+                  <div>
+                    <div className="flex justify-between items-start gap-2 mb-2">
+                      <span className="text-xs font-black text-white">{s.sessionName}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${s.count > 0 ? 'bg-primary/20 text-primary' : 'bg-white/5 text-muted'}`}>
+                        {s.count} Booked Patients
+                      </span>
+                    </div>
+                    
+                    <p className="text-sm font-black text-white/90 mb-1">🏥 {hospName}</p>
+                    {hospCity && (
+                      <p className="text-xs text-muted mb-2">Location: {hospCity}</p>
+                    )}
+
+                    {timeStr && (
+                      <p className="text-xs font-bold text-primary mb-3">⏰ Consulting Time: {timeStr}</p>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelDay({ date: selectedDate, sessionId: s._id, sessionLabel: s.sessionName });
+                      setShowRequest(true);
+                    }}
+                    className="w-full py-2 rounded-xl text-xs font-bold text-center border transition-all mt-2"
+                    style={{ background: 'rgba(var(--color-primary-rgb),0.08)', borderColor: 'rgba(var(--color-primary-rgb),0.2)', color: 'var(--color-primary)' }}
+                  >
+                    ⏳ Request Reschedule / Cancel
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-10">
+            <span className="text-3xl block mb-2">🏝️</span>
+            <p className="text-xs text-muted italic">No consulting appointments or sessions booked for this date.</p>
+          </div>
+        )}
       </div>
 
       {showRequest && (
