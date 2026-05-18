@@ -26,6 +26,7 @@ const SuperHospitalLinks = React.lazy(() => import('./pages/superadmin/SuperHosp
 const SuperSystem = React.lazy(() => import('./pages/superadmin/SuperSystem'));
 const SuperLogs = React.lazy(() => import('./pages/superadmin/SuperLogs'));
 const SuperPatients = React.lazy(() => import('./pages/superadmin/SuperPatients'));
+const SuperDoctors = React.lazy(() => import('./pages/superadmin/SuperDoctors'));
 
 // Admin
 const AdminLayout = React.lazy(() => import('./pages/admin/AdminLayout'));
@@ -101,6 +102,7 @@ export default function App() {
                 <Route path="system"         element={<SuperSystem />} />
                 <Route path="logs"           element={<SuperLogs />} />
                 <Route path="patients"       element={<SuperPatients />} />
+                <Route path="doctors"        element={<SuperDoctors />} />
                 <Route path="profile"        element={<ProfilePage />} />
               </Route>
 

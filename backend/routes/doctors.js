@@ -138,7 +138,7 @@ router.put('/:id', protect, authorize('admin', 'superadmin'), async (req, res) =
   try {
     const {
       name, email, phone, specialization, qualifications,
-      experience, bio, room, language, fees, isActive, sessions
+      experience, bio, room, language, fees, isActive, sessions, hospitalId
     } = req.body;
 
     const update = {
@@ -146,6 +146,10 @@ router.put('/:id', protect, authorize('admin', 'superadmin'), async (req, res) =
       qualifications: Array.isArray(qualifications) ? qualifications
         : (qualifications || '').split(',').map(q => q.trim()).filter(Boolean)
     };
+
+    if (req.user.role === 'superadmin' && hospitalId) {
+      update.hospitalId = hospitalId;
+    }
 
     if (sessions) update.sessions = sessions;
 
@@ -175,9 +179,16 @@ router.put('/:id', protect, authorize('admin', 'superadmin'), async (req, res) =
       });
     }
 
-    // Also update name in User account
-    if (name && doctor?.userId) {
-      await User.findByIdAndUpdate(doctor.userId, { name });
+    // Also update name & hospitalId in User account
+    if (doctor?.userId) {
+      const userUpdate = {};
+      if (name) userUpdate.name = name;
+      if (req.user.role === 'superadmin' && hospitalId) {
+        userUpdate.hospitalId = hospitalId;
+      }
+      if (Object.keys(userUpdate).length > 0) {
+        await User.findByIdAndUpdate(doctor.userId, userUpdate);
+      }
     }
 
     res.json({ success: true, doctor });
@@ -681,6 +692,33 @@ router.put('/:id/vacation', protect, authorize('doctor', 'admin', 'superadmin'),
 
     res.json({ success: true, vacation: doctor.vacation });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// ── Delete Doctor (admin/superadmin) ───────────────────────────────
+router.delete('/:id', protect, authorize('admin', 'superadmin'), async (req, res) => {
+  try {
+    const doctor = await Doctor.findById(req.params.id);
+    if (!doctor) return res.status(404).json({ success: false, message: 'Doctor not found' });
+
+    // Hard delete Doctor Profile and User account
+    await Doctor.findByIdAndDelete(req.params.id);
+    if (doctor.userId) {
+      await User.findByIdAndDelete(doctor.userId);
+    }
+
+    // Audit log
+    const { logAudit } = require('../utils/audit');
+    await logAudit(req, {
+      action: 'DELETE_DOCTOR_PROFILE',
+      targetType: 'Doctor',
+      targetId: doctor._id,
+      targetName: doctor.name
+    });
+
+    res.json({ success: true, message: 'Doctor deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 module.exports = router;

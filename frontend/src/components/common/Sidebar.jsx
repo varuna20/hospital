@@ -7,6 +7,7 @@ const NAV = {
   superadmin: [
     { to: '/super',               label: 'Dashboard',      icon: '⬡', end: true },
     { to: '/super/hospitals',     label: 'Hospitals',      icon: '🏥' },
+    { to: '/super/doctors',       label: 'Doctors',        icon: '🩺' },
     { to: '/super/revenue',       label: 'Revenue',        icon: '💰' },
     { to: '/super/subscriptions', label: 'Subscriptions',  icon: '📦' },
     { to: '/super/system',        label: 'System',         icon: '⚙' },
