@@ -880,7 +880,6 @@ aptRouter.post('/move-session', protect, authorize('staff', 'admin', 'superadmin
       if (notify) {
         const dateStr = moment(newDate).format('YYYY-MM-DD');
         const hospitalName = hospital.shortName || hospital.name;
-        const smsMsg = `${hospitalName}: Dear ${apt.patient?.name}, your appointment with Dr. ${doctor.name} has been moved to ${dateStr} (${newSessionLabel}). New Queue #: ${apt.queueNumber}.`;
         
         // SMS
         sendHospitalSms({
@@ -893,13 +892,21 @@ aptRouter.post('/move-session', protect, authorize('staff', 'admin', 'superadmin
             newDate: dateStr,
             newTime: newSessionLabel,
             queueNumber: apt.queueNumber,
-            hospitalName: hospital.shortName || hospital.name
+            hospitalName: hospitalName
           }
         }).catch(() => {});
 
-        // WhatsApp
+        // WhatsApp (Premium bold styling)
         if (hospital?.whatsapp?.enabled) {
-          sendCustomMessage(hospital, apt.patient, smsMsg).catch(() => {});
+          const wsMsg = 
+            `Dear *${apt.patient?.name || 'Patient'}*,\n` +
+            `Your appointment with *Dr. ${doctor.name}* has been rescheduled.\n\n` +
+            `📅 *New Date:* ${dateStr}\n` +
+            `⏰ *Session:* ${newSessionLabel || 'General'}\n` +
+            `🔢 *New Queue Number:* *#${apt.queueNumber}*\n\n` +
+            `We apologize for any inconvenience caused. Please arrive early.`;
+            
+          sendCustomMessage(hospital, apt.patient, wsMsg).catch(() => {});
         }
       }
     }
