@@ -264,6 +264,12 @@ export default function BookingPage() {
         </div>
         
         <div className="flex items-center gap-3">
+          {user && user.role === 'patient' && (
+            <div className="hidden sm:flex flex-col items-end text-right min-w-0">
+              <span className="text-white font-bold text-xs md:text-sm truncate max-w-[150px]">{user.name}</span>
+              <span className="text-[9px] uppercase font-extrabold tracking-wider" style={{ color: 'var(--color-primary)' }}>Logged In</span>
+            </div>
+          )}
           <button 
             type="button"
             onClick={() => {
