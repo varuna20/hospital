@@ -324,17 +324,41 @@ router.put('/:id/arrival', protect, authorize('staff', 'admin', 'superadmin'), a
     } else {
       // If doctor LEFT, send session summary to doctor
       const hospital = await Hospital.findById(doctor.hospitalId);
-      if (hospital?.whatsapp?.enabled) {
-        const today = moment().startOf('day').toDate();
-        const todayEnd = moment().endOf('day').toDate();
-        const appointments = await Appointment
-          .find({ doctor: req.params.id, appointmentDate: { $gte: today, $lte: todayEnd } })
-          .populate('patient', 'name phone');
-        
-        if (appointments.length > 0) {
+      const today = moment().startOf('day').toDate();
+      const todayEnd = moment().endOf('day').toDate();
+      const appointments = await Appointment
+        .find({ doctor: req.params.id, appointmentDate: { $gte: today, $lte: todayEnd } })
+        .populate('patient', 'name phone');
+      
+      if (appointments.length > 0) {
+        // 1. WhatsApp summary if enabled
+        if (hospital?.whatsapp?.enabled) {
           sendDoctorSessionSummary(hospital, doctor, appointments).catch(e => console.error('Summary error:', e));
           await Doctor.findByIdAndUpdate(req.params.id, { 'todayStatus.whatsappSummarysent': true });
         }
+
+        // 2. SMS Summary to Doctor with checked patient count, total session revenue and login link
+        const completedApts = appointments.filter(a => a.status === 'completed');
+        const totalChecked = completedApts.length;
+        const totalRevenue = completedApts.reduce((sum, a) => sum + (a.fees?.doctorFee || 0), 0);
+
+        const frontendUrl = process.env.FRONTEND_URL || 'https://echanneling-hospital.live';
+        const currency = hospital.payment?.currencySymbol || 'Rs.';
+        const loginLink = `${frontendUrl}/login`;
+
+        const smsMessage = 
+          `${hospital.shortName || hospital.name}\n` +
+          `Dear Dr. ${doctor.name},\n` +
+          `Your session has ended.\n` +
+          `✅ Checked Patients: ${totalChecked}\n` +
+          `💰 Session Revenue: ${currency} ${totalRevenue.toLocaleString()}\n` +
+          `🔗 Portal Login: ${loginLink}`;
+
+        sendHospitalSms({
+          hospitalId: hospital._id,
+          to: doctor.phone,
+          message: smsMessage
+        }).catch(err => console.error('Doctor SMS summary failed:', err));
       }
     }
 
@@ -351,15 +375,13 @@ router.put('/:id/arrival', protect, authorize('staff', 'admin', 'superadmin'), a
   }
 });
 
-// ── Send WhatsApp Session Summary to Doctor ────────────────────────
+// ── Send WhatsApp & SMS Session Summary to Doctor (Manual Trigger) ──
 router.post('/:id/notify-session', protect, authorize('staff', 'admin', 'superadmin'), async (req, res) => {
   try {
     const doctor = await Doctor.findById(req.params.id);
     if (!doctor) return res.status(404).json({ success: false, message: 'Doctor not found' });
 
     const hospital = await Hospital.findById(doctor.hospitalId);
-    if (!hospital?.whatsapp?.enabled)
-      return res.status(400).json({ success: false, message: 'WhatsApp not enabled for this hospital' });
 
     const today = moment().startOf('day').toDate();
     const todayEnd = moment().endOf('day').toDate();
@@ -367,13 +389,38 @@ router.post('/:id/notify-session', protect, authorize('staff', 'admin', 'superad
       .find({ doctor: req.params.id, appointmentDate: { $gte: today, $lte: todayEnd } })
       .populate('patient', 'name phone');
 
-    const result = await sendDoctorSessionSummary(hospital, doctor, appointments);
-
-    if (result.sent) {
-      await Doctor.findByIdAndUpdate(req.params.id, { 'todayStatus.whatsappSummarysent': true });
+    // 1. WhatsApp Summary if enabled
+    if (hospital?.whatsapp?.enabled) {
+      const result = await sendDoctorSessionSummary(hospital, doctor, appointments);
+      if (result.sent) {
+        await Doctor.findByIdAndUpdate(req.params.id, { 'todayStatus.whatsappSummarysent': true });
+      }
     }
 
-    res.json({ success: result.sent, message: result.sent ? 'Summary sent!' : result.reason });
+    // 2. SMS Summary to Doctor with checked patient count, total session revenue and login link
+    const completedApts = appointments.filter(a => a.status === 'completed');
+    const totalChecked = completedApts.length;
+    const totalRevenue = completedApts.reduce((sum, a) => sum + (a.fees?.doctorFee || 0), 0);
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://echanneling-hospital.live';
+    const currency = hospital.payment?.currencySymbol || 'Rs.';
+    const loginLink = `${frontendUrl}/login`;
+
+    const smsMessage = 
+      `${hospital.shortName || hospital.name}\n` +
+      `Dear Dr. ${doctor.name},\n` +
+      `Your session has ended.\n` +
+      `✅ Checked Patients: ${totalChecked}\n` +
+      `💰 Session Revenue: ${currency} ${totalRevenue.toLocaleString()}\n` +
+      `🔗 Portal Login: ${loginLink}`;
+
+    await sendHospitalSms({
+      hospitalId: hospital._id,
+      to: doctor.phone,
+      message: smsMessage
+    }).catch(() => {});
+
+    res.json({ success: true, message: 'Session summary sent successfully!' });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
