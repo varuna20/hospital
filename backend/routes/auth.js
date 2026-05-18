@@ -352,7 +352,7 @@ router.get('/me', protect, async (req, res) => {
   try {
     // Patient flow
     if (req.user.role === 'patient') {
-      const patient = await Patient.findById(req.user._id);
+      const patient = await Patient.findById(req.user._id).populate('hospitalId', 'name shortName slug theme logo isActive');
       if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });
       const { otpCode, otpExpires, password, ...safe } = patient.toObject();
       return res.json({ success: true, user: { ...safe, role: 'patient' } });

@@ -109,15 +109,40 @@ export default function PatientDashboard() {
             <h1 className="text-2xl font-bold font-sora">{user?.name}</h1>
             <p className="text-sm text-[var(--color-text-muted)]">Patient Portal</p>
           </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors"
-            style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)' }}
-            onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-            onMouseLeave={e => e.currentTarget.style.color = 'var(--color-text-muted)'}
-          >
-            <span>⏻</span> Logout
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                const slug = user?.hospitalId?.slug;
+                navigate(slug ? `/booking/${slug}` : '/');
+              }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all duration-200"
+              style={{
+                background: 'rgba(var(--color-primary-rgb),0.12)',
+                color: 'var(--color-primary)',
+                border: '1.5px solid rgba(var(--color-primary-rgb),0.35)',
+                cursor: 'pointer'
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'rgba(var(--color-primary-rgb),0.25)';
+                e.currentTarget.style.borderColor = 'var(--color-primary)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'rgba(var(--color-primary-rgb),0.12)';
+                e.currentTarget.style.borderColor = 'rgba(var(--color-primary-rgb),0.35)';
+              }}
+            >
+              📅 Book Appointment
+            </button>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors cursor-pointer"
+              style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+              onMouseLeave={e => e.currentTarget.style.color = 'var(--color-text-muted)'}
+            >
+              <span>⏻</span> Logout
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}
