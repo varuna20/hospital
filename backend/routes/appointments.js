@@ -805,18 +805,49 @@ aptRouter.post('/move-session', protect, authorize('staff', 'admin', 'superadmin
       return res.status(400).json({ success: false, message: 'doctorId, oldDate, and newDate required' });
     }
 
-    const startOld = moment(oldDate).startOf('day').toDate();
-    const endOld   = moment(oldDate).endOf('day').toDate();
-    const startNew = moment(newDate).startOf('day').toDate();
-    const endNew   = moment(newDate).endOf('day').toDate();
+    // Timezone-agnostic day boundaries using both Local and UTC ranges
+    const localStart = moment(oldDate).startOf('day').toDate();
+    const localEnd   = moment(oldDate).endOf('day').toDate();
+    const utcStart   = moment.utc(oldDate).startOf('day').toDate();
+    const utcEnd     = moment.utc(oldDate).endOf('day').toDate();
 
-    // 1. Find all appointments in the old session
-    const appointments = await Appointment.find({
+    const startOld = localStart < utcStart ? localStart : utcStart;
+    const endOld   = localEnd > utcEnd ? localEnd : utcEnd;
+
+    const newLocalStart = moment(newDate).startOf('day').toDate();
+    const newLocalEnd   = moment(newDate).endOf('day').toDate();
+    const newUtcStart   = moment.utc(newDate).startOf('day').toDate();
+    const newUtcEnd     = moment.utc(newDate).endOf('day').toDate();
+
+    const startNew = newLocalStart < newUtcStart ? newLocalStart : newUtcStart;
+    const endNew   = newLocalEnd > newUtcEnd ? newLocalEnd : newUtcEnd;
+
+    // 1. Find all appointments in the old session (Strict matching)
+    const oldSessionQuery = {
       doctor: doctorId,
       appointmentDate: { $gte: startOld, $lte: endOld },
-      sessionId: oldSessionId,
       status: 'booked'
-    }).populate('patient');
+    };
+
+    if (oldSessionId && oldSessionId !== 'undefined' && oldSessionId !== 'null' && oldSessionId !== 'default') {
+      oldSessionQuery.sessionId = oldSessionId;
+    } else {
+      oldSessionQuery.$or = [
+        { sessionId: { $in: [null, undefined, '', 'default', 'undefined', 'null'] } },
+        { sessionId: { $exists: false } }
+      ];
+    }
+
+    let appointments = await Appointment.find(oldSessionQuery).populate('patient');
+
+    // Fallback: If no appointments found strictly, lookup by doctor and day range only
+    if (appointments.length === 0) {
+      appointments = await Appointment.find({
+        doctor: doctorId,
+        appointmentDate: { $gte: startOld, $lte: endOld },
+        status: 'booked'
+      }).populate('patient');
+    }
 
     if (appointments.length === 0) {
       return res.status(404).json({ success: false, message: 'No booked appointments found in the old session' });
