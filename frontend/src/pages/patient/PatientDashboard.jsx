@@ -54,8 +54,7 @@ export default function PatientDashboard() {
   const updateProfile = async (e) => {
     e.preventDefault();
     try {
-      // Need to create this route
-      const { data } = await api.put('/auth/patient/profile', profile);
+      const { data } = await api.put('/auth/profile', profile);
       if (data.success) {
         toast.success('Profile updated');
         login(localStorage.getItem('token'), { ...user, ...profile });

@@ -504,7 +504,7 @@ router.post('/:id/create-login', protect, authorize('admin', 'superadmin'), asyn
 });
 
 // ── Doctor: Get Calendar Booking Counts ───────────────────────────
-router.get('/:id/calendar-counts', protect, async (req, res) => {
+router.get('/:id/calendar-counts', async (req, res) => {
   try {
     const start = moment().startOf('day').toDate();
     const end   = moment().add(30, 'days').endOf('day').toDate();

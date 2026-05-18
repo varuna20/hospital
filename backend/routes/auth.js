@@ -281,9 +281,10 @@ router.put('/profile', protect, upload.single('avatar'), async (req, res) => {
     }
 
     // Common fields
-    if (name) user.name = name;
-    if (phone) user.phone = phone;
-    if (email && req.user.role !== 'patient') user.email = email;
+    if (name !== undefined) user.name = name;
+    if (phone !== undefined) user.phone = phone;
+    if (email !== undefined && req.user.role !== 'patient') user.email = email;
+    if (req.body.address !== undefined && req.user.role === 'patient') user.address = req.body.address;
 
     // Avatar upload
     if (req.file) {
