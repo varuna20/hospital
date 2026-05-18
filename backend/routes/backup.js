@@ -90,18 +90,19 @@ router.post('/restore/:filename', async (req, res) => {
 
     for (let i = 0; i < entries.length; i++) {
       const [colName, docs] = entries[i];
-      const pct = Math.floor(15 + ((i / entries.length) * 80));
+      const pct = Math.floor(15 + ((i / entries.length) * 60));
       global.backupProgress.step = `Restoring collection ${colName} (${docs.length} documents)...`;
       global.backupProgress.progress = pct;
 
       // Skip system collections
       if (['system.indexes','system.users'].includes(colName)) continue;
-      
+
       const col = mongoose.connection.db.collection(colName);
       if (docs.length > 0) {
         await col.deleteMany({});
         await col.insertMany(docs.map(d => ({ ...d, _id: mongoose.Types.ObjectId.createFromHexString(d._id.$oid || d._id) })));
         restored += docs.length;
+      }
     }
 
     console.log('✅ Collection restore complete. Recreating upload media assets...');
