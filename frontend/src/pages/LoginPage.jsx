@@ -1,6 +1,6 @@
 import ChevFooter from '../components/ChevFooter.jsx';
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api, { fUrl } from '../utils/api';
 import toast from 'react-hot-toast';
@@ -204,7 +204,13 @@ export default function LoginPage() {
 
           <p className="text-center mt-4 text-sm" style={{ color:'var(--color-text-muted)' }}>
             Patient?{' '}
-            <a href="/" className="font-medium" style={{ color:'var(--color-primary)' }}>Book appointment →</a>
+            {selectedH ? (
+              <Link to={`/login/${selectedH.slug}`} className="font-medium" style={{ color:'var(--color-primary)' }}>
+                Access Patient Portal & Prescriptions →
+              </Link>
+            ) : (
+              <a href="/" className="font-medium" style={{ color:'var(--color-primary)' }}>Book appointment →</a>
+            )}
           </p>
         </div>
       </div>

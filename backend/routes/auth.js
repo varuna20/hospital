@@ -282,7 +282,35 @@ router.put('/profile', protect, upload.single('avatar'), async (req, res) => {
 
     // Common fields
     if (name !== undefined) user.name = name;
-    if (phone !== undefined) user.phone = phone;
+    if (phone !== undefined) {
+      if (req.user.role === 'patient') {
+        const cleanPhone = phone.replace(/[^0-9+]/g, '');
+        if (cleanPhone && cleanPhone !== user.phone) {
+          // Find other patient account with the same phone in the same hospital
+          const otherPatient = await Patient.findOne({
+            phone: cleanPhone,
+            hospitalId: user.hospitalId,
+            _id: { $ne: user._id }
+          });
+          
+          if (otherPatient) {
+            // Merge appointments
+            const Appointment = require('../models/Appointment');
+            await Appointment.updateMany({ patient: otherPatient._id }, { $set: { patient: user._id } });
+            
+            // Merge prescriptions
+            const Prescription = require('../models/Prescription');
+            await Prescription.updateMany({ patient: otherPatient._id }, { $set: { patient: user._id } });
+            
+            // Delete the merged patient
+            await Patient.findByIdAndDelete(otherPatient._id);
+          }
+          user.phone = cleanPhone;
+        }
+      } else {
+        user.phone = phone;
+      }
+    }
     if (email !== undefined && req.user.role !== 'patient') user.email = email;
     if (req.body.address !== undefined && req.user.role === 'patient') user.address = req.body.address;
 

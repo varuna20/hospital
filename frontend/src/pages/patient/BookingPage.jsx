@@ -12,6 +12,7 @@ import toast from 'react-hot-toast';
 import moment from 'moment';
 import { todayISO, fMoney, DAYS } from '../../utils/helpers';
 import ChevFooter from '../../components/ChevFooter.jsx';
+import { useAuth } from '../../context/AuthContext';
 
 // Step indicator dot
 function StepDot({ n, current, done }) {
@@ -74,6 +75,7 @@ function SelectCard({ selected, onClick, children, disabled }) {
 }
 
 export default function BookingPage() {
+  const { user } = useAuth();
   const { slug } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -258,7 +260,37 @@ export default function BookingPage() {
             {selHospital?.city && <p className="text-white/40 text-[10px] md:text-xs">{selHospital.city}</p>}
           </div>
         </div>
-        <img src="/chevara-brand.png" alt="Chevara Labs" className="h-5 md:h-6 object-contain opacity-40 shrink-0 ml-2" />
+        
+        <div className="flex items-center gap-3">
+          <button 
+            type="button"
+            onClick={() => {
+              if (user && user.role === 'patient') {
+                navigate('/patient-dashboard');
+              } else {
+                navigate(selHospital ? `/login/${selHospital.slug}` : '/login');
+              }
+            }}
+            className="px-3 py-1.5 md:px-4 md:py-2 rounded-xl text-xs md:text-sm font-bold transition-all duration-200"
+            style={{
+              background: 'rgba(255,255,255,0.06)',
+              color: 'var(--color-primary)',
+              border: '1.5px solid rgba(var(--color-primary-rgb),0.2)',
+              cursor: 'pointer'
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'rgba(var(--color-primary-rgb),0.15)';
+              e.currentTarget.style.borderColor = 'var(--color-primary)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+              e.currentTarget.style.borderColor = 'rgba(var(--color-primary-rgb),0.2)';
+            }}
+          >
+            {user && user.role === 'patient' ? '👤 Dashboard' : '🔑 Patient Portal'}
+          </button>
+          <img src="/chevara-brand.png" alt="Chevara Labs" className="h-5 md:h-6 object-contain opacity-40 shrink-0 ml-2" />
+        </div>
       </header>
 
       {/* Main content */}
