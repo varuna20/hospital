@@ -424,7 +424,11 @@ export default function SuperDoctors() {
       doc.specialization?.toLowerCase().includes(search.toLowerCase());
     
     const hospIdStr = doc.hospitalId?._id || doc.hospitalId;
-    const matchesHospital = !selHospitalId || hospIdStr === selHospitalId;
+    const listHospIds = doc.hospitalIds?.map(h => h._id || h) || [];
+
+    const matchesHospital = !selHospitalId || 
+                            hospIdStr === selHospitalId ||
+                            listHospIds.includes(selHospitalId);
 
     return matchesSearch && matchesHospital;
   });
@@ -522,13 +526,22 @@ export default function SuperDoctors() {
 
                   {/* Hospital Details Badge */}
                   <div className="p-3 rounded-xl mb-3 space-y-1.5" style={{ background: 'var(--color-surface2)' }}>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs">🏥</span>
-                      <p className="text-xs font-bold text-white truncate">{hospitalName}</p>
+                    <div className="flex items-start gap-1.5">
+                      <span className="text-xs mt-0.5">🏥</span>
+                      <div className="min-w-0 flex-1">
+                        {doc.hospitalIds && doc.hospitalIds.length > 0 ? (
+                          doc.hospitalIds.map(h => (
+                            <p key={h._id || h} className="text-xs font-bold text-white truncate mb-0.5">
+                              {h.name} <span className="text-[10px] font-normal opacity-50">({h.city})</span>
+                            </p>
+                          ))
+                        ) : (
+                          <p className="text-xs font-bold text-white truncate">
+                            {hospitalName} {hospitalCity && <span className="text-[10px] font-normal opacity-50">({hospitalCity})</span>}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    {hospitalCity && (
-                      <p className="text-xs ml-4" style={{ color: 'var(--color-text-muted)' }}>Location: {hospitalCity}</p>
-                    )}
                   </div>
 
                   {/* Contact / Bio details */}
