@@ -10,7 +10,7 @@ import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import api, { fUrl } from '../../utils/api';
 import toast from 'react-hot-toast';
 import moment from 'moment';
-import { todayISO, fMoney, DAYS } from '../../utils/helpers';
+import { todayISO, fMoney, DAYS, waitEstimateFromMins } from '../../utils/helpers';
 import ChevFooter from '../../components/ChevFooter.jsx';
 import { useAuth } from '../../context/AuthContext';
 
@@ -95,6 +95,7 @@ export default function BookingPage() {
   const [form, setForm]               = useState({ name: '', phone: '', reason: '' });
   const [loading, setLoading]         = useState(false);
   const [booking, setBooking]         = useState(null);
+  const [isRefundable, setIsRefundable] = useState(false);
 
   const sym = selHospital?.payment?.currencySymbol || 'Rs.';
 
@@ -227,7 +228,8 @@ export default function BookingPage() {
         sessionLabel: selSession?.label || selSession?.sessionName,
         name: form.name,
         phone: form.phone,
-        reason: form.reason
+        reason: form.reason,
+        isRefundable
       };
       const { data } = await api.post('/appointments/book', payload);
       setBooking(data);
@@ -308,7 +310,7 @@ export default function BookingPage() {
               <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24, padding: '32px 20px', marginBottom: 40 }}>
                 <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Your Queue Number</p>
                 <h1 style={{ color: 'var(--color-primary)', fontSize: 72, fontFamily: 'Sora,sans-serif', fontWeight: 900, lineHeight: 1, marginBottom: 12 }}>{booking.queueNumber}</h1>
-                <p style={{ color: 'white', fontSize: 14, fontWeight: 600 }}>Estimated Wait: ~{booking.estimatedWaitMinutes} mins</p>
+                <p style={{ color: 'white', fontSize: 14, fontWeight: 600 }}>Estimated Wait: {waitEstimateFromMins(booking.estimatedWaitMinutes)}</p>
               </div>
 
               <div className="space-y-3">
@@ -587,13 +589,57 @@ export default function BookingPage() {
                   ['Session', selSession?.label || 'General'],
                   ['Time', `${selSession?.startTime} - ${selSession?.endTime}`],
                   ['Date', new Date(date + 'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})],
-                  ['Fee', `${sym} ${((selDoctor?.fees?.doctorFee||0)+(selDoctor?.fees?.hospitalCharge||0)).toLocaleString()}`],
+                  ['Base Fee', `${sym} ${((selDoctor?.fees?.doctorFee||0)+(selDoctor?.fees?.hospitalCharge||0)).toLocaleString()}`],
+                  ...(isRefundable ? [['Refundable Charge', `${sym} 500`]] : []),
+                  ['Total Amount', `${sym} ${((selDoctor?.fees?.doctorFee||0)+(selDoctor?.fees?.hospitalCharge||0) + (isRefundable ? 500 : 0)).toLocaleString()}`],
                 ].map(([l, v]) => (
-                  <div key={l} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>{l}</span>
-                    <span style={{ color: 'white', fontWeight: 500, fontSize: 13, textAlign: 'right', maxWidth: '60%' }}>{v}</span>
+                  <div key={l} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, borderTop: l === 'Total Amount' ? '1px dashed rgba(255,255,255,0.15)' : 'none', paddingTop: l === 'Total Amount' ? 8 : 0 }}>
+                    <span style={{ color: l === 'Total Amount' ? 'var(--color-primary)' : 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: l === 'Total Amount' ? 700 : 400 }}>{l}</span>
+                    <span style={{ color: l === 'Total Amount' ? 'var(--color-primary)' : 'white', fontWeight: l === 'Total Amount' ? 800 : 500, fontSize: 13, textAlign: 'right', maxWidth: '60%' }}>{v}</span>
                   </div>
                 ))}
+              </div>
+
+              {/* Refundable Booking Option */}
+              <div 
+                onClick={() => setIsRefundable(!isRefundable)}
+                style={{
+                  background: isRefundable ? 'rgba(var(--color-primary-rgb),0.12)' : 'rgba(255,255,255,0.03)',
+                  border: `1.5px solid ${isRefundable ? 'var(--color-primary)' : 'rgba(255,255,255,0.08)'}`,
+                  borderRadius: 16,
+                  padding: '16px',
+                  marginBottom: 24,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 16,
+                  transition: 'all 0.2s'
+                }}
+              >
+                <div style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: 6,
+                  border: `2px solid ${isRefundable ? 'var(--color-primary)' : 'rgba(255,255,255,0.3)'}`,
+                  background: isRefundable ? 'var(--color-primary)' : 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 14,
+                  color: '#02040a',
+                  fontWeight: 900
+                }}>
+                  {isRefundable ? '✓' : ''}
+                </div>
+                <div style={{ flex: 1, textAlign: 'left' }}>
+                  <h4 style={{ color: 'white', fontSize: 14, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    🛡️ Refundable Booking
+                    <span style={{ fontSize: 10, background: 'var(--color-primary)', color: 'black', padding: '1px 6px', borderRadius: 6, fontWeight: 800 }}>+ {sym} 500</span>
+                  </h4>
+                  <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, margin: '4px 0 0 0', lineHeight: 1.4 }}>
+                    Get 100% refund of doctor's fee instantly if you request cancellation.
+                  </p>
+                </div>
               </div>
 
               {/* Form fields */}

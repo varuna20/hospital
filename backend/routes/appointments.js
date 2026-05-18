@@ -20,6 +20,32 @@ const {
 const moment = require('moment');
 const crypto = require('crypto');
 
+async function getDoctorConsultMinutes(doctorId, defaultMins = 15) {
+  try {
+    const today = moment().startOf('day').toDate();
+    const completedApts = await Appointment.find({
+      doctor: doctorId,
+      appointmentDate: today,
+      status: 'completed'
+    }).sort({ updatedAt: 1 });
+
+    if (completedApts.length >= 2) {
+      const firstCompleted = completedApts[0].updatedAt;
+      const lastCompleted = completedApts[completedApts.length - 1].updatedAt;
+      const totalMs = lastCompleted - firstCompleted;
+      const durationMins = totalMs / (1000 * 60);
+      if (durationMins > 0) {
+        const calculatedMins = durationMins / (completedApts.length - 1);
+        if (calculatedMins >= 2 && calculatedMins <= 45) {
+          return Math.round(calculatedMins * 10) / 10;
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error calculating consult minutes:', err);
+  }
+  return defaultMins;
+}
 
 // Book appointment
 aptRouter.post('/book', async (req, res) => {
@@ -80,6 +106,12 @@ aptRouter.post('/book', async (req, res) => {
     // Generate a tracking token for all appointments
     const guestToken = crypto.randomBytes(20).toString('hex');
 
+    const isRefundable = req.body.isRefundable === true;
+    const refundableFee = isRefundable ? 500 : 0;
+    const doctorFee = doctor.fees?.doctorFee || 0;
+    const hospitalCharge = doctor.fees?.hospitalCharge || 0;
+    const totalAmount = doctorFee + hospitalCharge + refundableFee;
+
     const apt = await Appointment.create({
       hospitalId, patient: patient._id, doctor: doctorId,
       appointmentDate: bookingDate,
@@ -87,10 +119,12 @@ aptRouter.post('/book', async (req, res) => {
       sessionId: req.body.sessionId,
       sessionLabel: req.body.sessionLabel,
       reason, isEmergency: isEmergency || false,
+      isRefundableBooking: isRefundable,
       fees: {
-        doctorFee:      doctor.fees?.doctorFee || 0,
-        hospitalCharge: doctor.fees?.hospitalCharge || 0,
-        totalAmount:    doctor.fees?.totalFee || 0
+        doctorFee,
+        hospitalCharge,
+        refundableFee,
+        totalAmount
       },
       guestToken,
       bookedBy: patientId ? 'patient' : 'staff'
@@ -172,7 +206,7 @@ aptRouter.post('/book', async (req, res) => {
       appointment: populated,
       queueNumber: apt.queueNumber,
       guestToken,
-      estimatedWaitMinutes: apt.queueNumber * (doctor.avgConsultMinutes || 5),
+      estimatedWaitMinutes: apt.queueNumber * (await getDoctorConsultMinutes(doctorId, doctor.avgConsultMinutes || 15)),
       fees: apt.fees
     });
   } catch (err) {
@@ -300,9 +334,10 @@ aptRouter.get('/guest/:token', async (req, res) => {
       status: { $in: ['booked', 'arrived'] }
     });
     const isArrived = apt.doctor.todayStatus?.isArrived || false;
+    const consultMinutes = await getDoctorConsultMinutes(apt.doctor._id, apt.doctor.avgConsultMinutes || 15);
     res.json({ success: true, queueNumber: apt.queueNumber, status: apt.status,
       currentServing: queue?.currentNumber || 0, peopleAhead: ahead, isArrived,
-      estimatedWaitMinutes: ahead * (apt.doctor.avgConsultMinutes || 5), doctor: apt.doctor.name, room: apt.doctor.room });
+      estimatedWaitMinutes: ahead * consultMinutes, avgSlotMinutes: consultMinutes, doctor: apt.doctor.name, room: apt.doctor.room });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

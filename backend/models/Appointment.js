@@ -53,8 +53,11 @@ const appointmentSchema = new mongoose.Schema({
   fees: {
     doctorFee:      { type: Number, default: 0 },
     hospitalCharge: { type: Number, default: 0 },
+    refundableFee:  { type: Number, default: 0 },
     totalAmount:    { type: Number, default: 0 }
   },
+
+  isRefundableBooking: { type: Boolean, default: false },
 
   paymentStatus: {
     type: String,
