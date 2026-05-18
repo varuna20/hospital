@@ -217,7 +217,19 @@ function DoctorRequestsModal({ onClose }) {
                 </div>
 
                 <div className="flex gap-2">
-                  <button onClick={() => setMoving(r)} className="btn-primary text-xs flex-1 py-2">Fulfill / Move Patients</button>
+                  <button 
+                    onClick={() => {
+                      setMoving(r);
+                      setMoveData({
+                        newDate: r.proposedDate ? moment(r.proposedDate).format('YYYY-MM-DD') : '',
+                        newSessionId: '',
+                        newSessionLabel: r.proposedSessionLabel || r.sessionLabel || ''
+                      });
+                    }} 
+                    className="btn-primary text-xs flex-1 py-2"
+                  >
+                    Fulfill / Move Patients
+                  </button>
                   <button onClick={() => handleStatus(r._id, 'rejected')} className="btn-ghost text-xs py-2">Dismiss</button>
                 </div>
               </div>
@@ -234,13 +246,22 @@ function DoctorRequestsModal({ onClose }) {
               <div className="space-y-4">
                 <div>
                   <label className="label">New Appointment Date</label>
-                  <input type="date" className="input" defaultValue={moving.proposedDate ? moment(moving.proposedDate).format('YYYY-MM-DD') : ''}
-                    onChange={e => setMoveData({...moveData, newDate: e.target.value})} />
+                  <input 
+                    type="date" 
+                    className="input" 
+                    value={moveData.newDate}
+                    onChange={e => setMoveData({...moveData, newDate: e.target.value})} 
+                  />
                 </div>
                 <div>
                   <label className="label">New Session Name</label>
-                  <input type="text" className="input" placeholder="e.g. Morning Session" 
-                    onChange={e => setMoveData({...moveData, newSessionLabel: e.target.value})} />
+                  <input 
+                    type="text" 
+                    className="input" 
+                    placeholder="e.g. Morning Session" 
+                    value={moveData.newSessionLabel}
+                    onChange={e => setMoveData({...moveData, newSessionLabel: e.target.value})} 
+                  />
                 </div>
                 <div className="flex gap-3 pt-4">
                   <button onClick={fulfillMove} className="btn-primary flex-1">🚀 Move All & Notify</button>
