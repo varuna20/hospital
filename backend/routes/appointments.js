@@ -97,112 +97,133 @@ aptRouter.post('/book', async (req, res) => {
       }
     }
 
-    let patient;
-    let isGuestBooking = false;
-    if (patientId) {
-      patient = await Patient.findById(patientId);
-    } else if (name && phone) {
-      // Allow multiple patients with same phone (family members)
-      // Match by BOTH name and phone - different name = new patient record
-      patient = await Patient.findOne({
-        phone, hospitalId,
-        name: { $regex: new RegExp('^' + name.trim() + '$', 'i') }
-      });
-      if (!patient) patient = await Patient.create({ name: name.trim(), phone, hospitalId, isGuest: true });
-      isGuestBooking = true;
+    const { patientsList } = req.body;
+    let plist = [];
+    if (Array.isArray(patientsList) && patientsList.length > 0) {
+      plist = patientsList;
     } else {
-      return res.status(400).json({ success: false, message: 'patientId or name+phone required' });
+      plist = [{ name, phone, patientId }];
     }
 
     const bookingDate = moment(appointmentDate).startOf('day').toDate();
-
-    // Check duplicate
-    const dup = await Appointment.findOne({
-      patient: patient._id, doctor: doctorId,
-      appointmentDate: bookingDate, status: { $nin: ['cancelled', 'absent'] }
-    });
-    if (dup) return res.status(400).json({ success: false, message: 'Already booked for this doctor today' });
-
-    // Queue
     const sessionId = req.body.sessionId || 'default';
+    
+    // Find or create Queue
     let queue = await Queue.findOne({ hospitalId, doctor: doctorId, date: bookingDate, sessionId });
     if (!queue) queue = await Queue.create({ hospitalId, doctor: doctorId, date: bookingDate, sessionId });
-    queue.lastAssignedNumber += 1;
-    await queue.save();
 
-    // Generate a tracking token for all appointments
-    const guestToken = crypto.randomBytes(20).toString('hex');
+    const createdAppointments = [];
+    const crypto = require('crypto');
 
-    const isRefundable = req.body.isRefundable === true;
-    const refundableFee = isRefundable ? 500 : 0;
-    const doctorFee = doctor.fees?.doctorFee || 0;
-    const hospitalCharge = doctor.fees?.hospitalCharge || 0;
-    const totalAmount = doctorFee + hospitalCharge + refundableFee;
+    for (const pItem of plist) {
+      let currentPatient;
+      if (pItem.patientId) {
+        currentPatient = await Patient.findById(pItem.patientId);
+      } else if (pItem.name && pItem.phone) {
+        currentPatient = await Patient.findOne({
+          phone: pItem.phone, hospitalId,
+          name: { $regex: new RegExp('^' + pItem.name.trim() + '$', 'i') }
+        });
+        if (!currentPatient) {
+          currentPatient = await Patient.create({ name: pItem.name.trim(), phone: pItem.phone, hospitalId, isGuest: true });
+        }
+      } else {
+        continue;
+      }
 
-    const apt = await Appointment.create({
-      hospitalId, patient: patient._id, doctor: doctorId,
-      appointmentDate: bookingDate,
-      queueNumber: queue.lastAssignedNumber,
-      sessionId: req.body.sessionId,
-      sessionLabel: req.body.sessionLabel,
-      reason, isEmergency: isEmergency || false,
-      isRefundableBooking: isRefundable,
-      fees: {
-        doctorFee,
-        hospitalCharge,
-        refundableFee,
-        totalAmount
-      },
-      guestToken,
-      bookedBy: patientId ? 'patient' : 'staff'
-    });
+      // Check duplicate
+      const dup = await Appointment.findOne({
+        patient: currentPatient._id, doctor: doctorId,
+        appointmentDate: bookingDate, status: { $nin: ['cancelled', 'absent'] }
+      });
+      if (dup) {
+        return res.status(400).json({ success: false, message: `Patient '${pItem.name}' already has a booking for this doctor today.` });
+      }
 
-    const populated = await Appointment.findById(apt._id)
-      .populate('patient', 'name phone email')
-      .populate('doctor', 'name specialization room fees');
+      // Allocate consecutive queue number
+      queue.lastAssignedNumber += 1;
+      const queueNumber = queue.lastAssignedNumber;
 
-    // WhatsApp confirmation
-    const hospital = await Hospital.findById(hospitalId);
-    if (hospital?.whatsapp?.enabled && hospital.whatsapp.notifyOnBook && patient.whatsappOptIn !== false) {
-      sendBookingConfirmation(hospital, patient, apt, doctor).catch(() => {});
+      const guestToken = crypto.randomBytes(20).toString('hex');
+      const isRefundable = req.body.isRefundable === true;
+      const refundableFee = isRefundable ? 500 : 0;
+      const doctorFee = doctor.fees?.doctorFee || 0;
+      const hospitalCharge = doctor.fees?.hospitalCharge || 0;
+      const totalAmount = doctorFee + hospitalCharge + refundableFee;
+
+      const apt = await Appointment.create({
+        hospitalId, patient: currentPatient._id, doctor: doctorId,
+        appointmentDate: bookingDate,
+        queueNumber,
+        sessionId: req.body.sessionId,
+        sessionLabel: req.body.sessionLabel,
+        reason: reason || pItem.reason || '',
+        isEmergency: isEmergency || false,
+        isRefundableBooking: isRefundable,
+        fees: {
+          doctorFee,
+          hospitalCharge,
+          refundableFee,
+          totalAmount
+        },
+        guestToken,
+        bookedBy: patientId ? 'patient' : 'staff'
+      });
+
+      const populated = await Appointment.findById(apt._id)
+        .populate('patient', 'name phone email')
+        .populate('doctor', 'name specialization room fees');
+
+      createdAppointments.push(populated);
+
+      // WhatsApp confirmation
+      const hospital = await Hospital.findById(hospitalId);
+      if (hospital?.whatsapp?.enabled && hospital.whatsapp.notifyOnBook && currentPatient.whatsappOptIn !== false) {
+        sendBookingConfirmation(hospital, currentPatient, apt, doctor).catch(() => {});
+      }
     }
+
+    // Save final queue lastAssignedNumber
+    await queue.save();
 
     const io = req.app.get('io');
     if (io) {
-      io.to(`hospital_${hospitalId}_doc_${doctorId}`).emit('appointment_booked', { queueNumber: apt.queueNumber });
-      // Instant display update
+      for (const apt of createdAppointments) {
+        io.to(`hospital_${hospitalId}_doc_${doctorId}`).emit('appointment_booked', { queueNumber: apt.queueNumber });
+      }
       io.to(`display_${hospitalId}_${doctorId}`).emit('appointment_booked', { doctorId });
       io.to(`display_${hospitalId}`).emit('appointment_booked', { doctorId });
     }
 
-    // Send SMS confirmation
+    // Send SMS confirmation for the main booking patient if available
     try {
+      const mainApt = createdAppointments[0];
       const hosp = await require('../models/Hospital').findById(hospitalId, 'name shortName payment sms');
       const { SystemSettings } = require('../models/SystemSettings');
       const settings = await SystemSettings.findOne();
       
       const smsEnabled = hosp?.sms?.enabled || settings?.sms?.enabled;
       if (smsEnabled && hosp?.sms?.notifyOnBook !== false) {
-        const patPhone = patient?.phone || phone;
+        const patPhone = mainApt.patient?.phone || mainApt.phone;
         
         // Calculate estimated time
         const avgSlot = doctor.avgConsultMinutes || 5;
-        const waitMinutes = (apt.queueNumber - 1) * avgSlot;
+        const waitMinutes = (mainApt.queueNumber - 1) * avgSlot;
         const startTimeStr = doctor.sessions?.[0]?.startTime || '08:00';
         const estTime = moment(appointmentDate).set({
           hour:   parseInt(startTimeStr.split(':')[0]),
           minute: parseInt(startTimeStr.split(':')[1])
         }).add(waitMinutes, 'minutes').format('hh:mm A');
 
-        const trackUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/queue-status/${guestToken}`;
+        const trackUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/queue-status/${mainApt.guestToken}`;
 
         sendHospitalSms({
           hospitalId,
           to: patPhone,
           templateType: 'booking',
           templateData: {
-            patientName: patient?.name || name,
-            queueNumber: apt.queueNumber,
+            patientName: mainApt.patient?.name || mainApt.name,
+            queueNumber: mainApt.queueNumber,
             doctorName: doctor?.name || 'Doctor',
             hospitalName: hosp.shortName || hosp.name,
             date: moment(appointmentDate).format('DD/MM/YYYY'),
@@ -220,21 +241,23 @@ aptRouter.post('/book', async (req, res) => {
 
     // Audit log for booking
     const { logAudit } = require('../utils/audit');
+    const mainApt = createdAppointments[0];
     await logAudit(req, {
       action: 'APPOINTMENT_BOOKED',
       targetType: 'Appointment',
-      targetId: apt._id,
-      targetName: `Queue #${apt.queueNumber} - ${patient?.name || name}`,
-      newValues: { queueNumber: apt.queueNumber, doctorName: doctor.name, appointmentDate: bookingDate }
+      targetId: mainApt._id,
+      targetName: `Queue #${mainApt.queueNumber} - ${mainApt.patient?.name}`,
+      newValues: { queueNumber: mainApt.queueNumber, doctorName: doctor.name, appointmentDate: bookingDate, count: createdAppointments.length }
     });
 
     res.status(201).json({
       success: true,
-      appointment: populated,
-      queueNumber: apt.queueNumber,
-      guestToken,
-      estimatedWaitMinutes: apt.queueNumber * (await getDoctorConsultMinutes(doctorId, doctor.avgConsultMinutes || 15)),
-      fees: apt.fees
+      appointments: createdAppointments,
+      appointment: mainApt,
+      queueNumber: mainApt.queueNumber,
+      guestToken: mainApt.guestToken,
+      estimatedWaitMinutes: mainApt.queueNumber * (await getDoctorConsultMinutes(doctorId, doctor.avgConsultMinutes || 15)),
+      fees: mainApt.fees
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

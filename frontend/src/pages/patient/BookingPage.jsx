@@ -97,7 +97,7 @@ export default function BookingPage() {
   const [booking, setBooking]         = useState(null);
   const [isRefundable, setIsRefundable] = useState(false);
   const [hasBookingToday, setHasBookingToday] = useState(false);
-  const [selectedMemberId, setSelectedMemberId] = useState('myself');
+  const [selectedMemberIds, setSelectedMemberIds] = useState(['myself']);
   const [showAddFamilyForm, setShowAddFamilyForm] = useState(false);
   const [familyForm, setFamilyForm] = useState({ name: '', relationship: 'Spouse', phone: '' });
   const [addingFamily, setAddingFamily] = useState(false);
@@ -142,15 +142,16 @@ export default function BookingPage() {
   // Sync selected family member to form fields
   useEffect(() => {
     if (!user) return;
-    if (selectedMemberId === 'myself') {
+    const firstId = selectedMemberIds[0] || 'myself';
+    if (firstId === 'myself') {
       setForm(f => ({ ...f, name: user.name, phone: user.phone || '' }));
     } else {
-      const member = user.familyMembers?.find(m => m._id.toString() === selectedMemberId);
+      const member = user.familyMembers?.find(m => m._id.toString() === firstId);
       if (member) {
         setForm(f => ({ ...f, name: member.name, phone: member.phone || user.phone || '' }));
       }
     }
-  }, [selectedMemberId, user]);
+  }, [selectedMemberIds, user]);
 
   // Load hospitals (or pre-select via slug)
   useEffect(() => {
@@ -257,6 +258,18 @@ export default function BookingPage() {
     if (!form.name || !form.phone) return toast.error('Please enter name and phone');
     setLoading(true);
     try {
+      let patientsList = [];
+      if (user && user.role === 'patient' && selectedMemberIds.length > 0) {
+        patientsList = selectedMemberIds.map(id => {
+          if (id === 'myself') {
+            return { name: user.name, phone: user.phone || '', patientId: user._id };
+          } else {
+            const m = user.familyMembers?.find(x => x._id.toString() === id);
+            return { name: m?.name || '', phone: m?.phone || user.phone || '', patientId: m?._id || '' };
+          }
+        });
+      }
+
       const payload = {
         doctorId: selDoctor._id,
         hospitalId: selHospital._id,
@@ -266,7 +279,8 @@ export default function BookingPage() {
         name: form.name,
         phone: form.phone,
         reason: form.reason,
-        isRefundable
+        isRefundable,
+        patientsList
       };
       const { data } = await api.post('/appointments/book', payload);
       setBooking(data);
@@ -689,16 +703,26 @@ export default function BookingPage() {
               {user && user.role === 'patient' && (
                 <div style={{ marginBottom: 24, textAlign: 'left' }}>
                   <label style={{ display: 'block', color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
-                    Who is this booking for?
+                    Who is this booking for? (Select one or multiple for adjacent bookings)
                   </label>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {/* Myself */}
                     <button
                       type="button"
-                      onClick={() => setSelectedMemberId('myself')}
+                      onClick={() => {
+                        const id = 'myself';
+                        setSelectedMemberIds(prev => {
+                          if (prev.includes(id)) {
+                            if (prev.length === 1) return prev;
+                            return prev.filter(x => x !== id);
+                          } else {
+                            return [...prev, id];
+                          }
+                        });
+                      }}
                       style={{
-                        background: selectedMemberId === 'myself' ? 'rgba(var(--color-primary-rgb),0.12)' : 'rgba(255,255,255,0.03)',
-                        border: `1.5px solid ${selectedMemberId === 'myself' ? 'var(--color-primary)' : 'rgba(255,255,255,0.08)'}`,
+                        background: selectedMemberIds.includes('myself') ? 'rgba(var(--color-primary-rgb),0.12)' : 'rgba(255,255,255,0.03)',
+                        border: `1.5px solid ${selectedMemberIds.includes('myself') ? 'var(--color-primary)' : 'rgba(255,255,255,0.08)'}`,
                         borderRadius: 12,
                         padding: '10px 14px',
                         cursor: 'pointer',
@@ -706,39 +730,59 @@ export default function BookingPage() {
                         flexDirection: 'column',
                         alignItems: 'flex-start',
                         gap: 2,
-                        transition: 'all 0.2s'
+                        transition: 'all 0.2s',
+                        position: 'relative'
                       }}
                     >
+                      {selectedMemberIds.includes('myself') && (
+                        <div style={{ position: 'absolute', top: 6, right: 8, color: 'var(--color-primary)', fontSize: 10, fontWeight: 900 }}>✓ Selected</div>
+                      )}
                       <span style={{ color: 'white', fontSize: 13, fontWeight: 700 }}>👤 Myself</span>
                       <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>Account Owner</span>
                     </button>
 
                     {/* Family Members */}
-                    {user.familyMembers?.map(m => (
-                      <button
-                        key={m._id}
-                        type="button"
-                        onClick={() => setSelectedMemberId(m._id.toString())}
-                        style={{
-                          background: selectedMemberId === m._id.toString() ? 'rgba(var(--color-primary-rgb),0.12)' : 'rgba(255,255,255,0.03)',
-                          border: `1.5px solid ${selectedMemberId === m._id.toString() ? 'var(--color-primary)' : 'rgba(255,255,255,0.08)'}`,
-                          borderRadius: 12,
-                          padding: '10px 14px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'flex-start',
-                          gap: 2,
-                          transition: 'all 0.2s',
-                          position: 'relative'
-                        }}
-                      >
-                        <span style={{ color: 'white', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%', textAlign: 'left' }}>
-                          👥 {m.name}
-                        </span>
-                        <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>{m.relationship}</span>
-                      </button>
-                    ))}
+                    {user.familyMembers?.map(m => {
+                      const isSel = selectedMemberIds.includes(m._id.toString());
+                      return (
+                        <button
+                          key={m._id}
+                          type="button"
+                          onClick={() => {
+                            const id = m._id.toString();
+                            setSelectedMemberIds(prev => {
+                              if (prev.includes(id)) {
+                                if (prev.length === 1) return prev;
+                                return prev.filter(x => x !== id);
+                              } else {
+                                return [...prev, id];
+                              }
+                            });
+                          }}
+                          style={{
+                            background: isSel ? 'rgba(var(--color-primary-rgb),0.12)' : 'rgba(255,255,255,0.03)',
+                            border: `1.5px solid ${isSel ? 'var(--color-primary)' : 'rgba(255,255,255,0.08)'}`,
+                            borderRadius: 12,
+                            padding: '10px 14px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'flex-start',
+                            gap: 2,
+                            transition: 'all 0.2s',
+                            position: 'relative'
+                          }}
+                        >
+                          {isSel && (
+                            <div style={{ position: 'absolute', top: 6, right: 8, color: 'var(--color-primary)', fontSize: 10, fontWeight: 900 }}>✓ Selected</div>
+                          )}
+                          <span style={{ color: 'white', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%', textAlign: 'left', paddingRight: isSel ? 35 : 0 }}>
+                            👥 {m.name}
+                          </span>
+                          <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>{m.relationship}</span>
+                        </button>
+                      );
+                    })}
 
                     {/* Add Family Button */}
                     <button
@@ -832,7 +876,7 @@ export default function BookingPage() {
                                 setShowAddFamilyForm(false);
                                 // Automatically select the new member!
                                 const newMember = data.familyMembers[data.familyMembers.length - 1];
-                                if (newMember) setSelectedMemberId(newMember._id.toString());
+                                if (newMember) setSelectedMemberIds(prev => [...prev, newMember._id.toString()]);
                               }
                             } catch (e) {
                               toast.error(e.response?.data?.message || 'Failed to add family member');

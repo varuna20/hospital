@@ -8,9 +8,9 @@ import { fUrl } from '../../utils/api';
 import { fDate } from '../../utils/helpers';
 
 export default function PatientDashboard() {
-  const { user, login, logout } = useAuth();
+  const { user, login, logout, updateUser } = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab] = useState('profile'); // profile | history | prescriptions
+  const [tab, setTab] = useState('profile'); // profile | family | history | prescriptions
   const [loading, setLoading] = useState(true);
 
   // Profile State
@@ -20,8 +20,17 @@ export default function PatientDashboard() {
   const [history, setHistory] = useState([]);
   const [prescriptions, setPrescriptions] = useState([]);
 
+  // Family Members State
+  const [showAddDashboardForm, setShowAddDashboardForm] = useState(false);
+  const [newMemberForm, setNewMemberForm] = useState({ name: '', relationship: 'Spouse', phone: '' });
+  const [addingFamily, setAddingFamily] = useState(false);
+
   useEffect(() => {
-    fetchData();
+    if (tab !== 'family') {
+      fetchData();
+    } else {
+      setLoading(false);
+    }
   }, [tab]);
 
   const fetchData = async () => {
@@ -147,13 +156,13 @@ export default function PatientDashboard() {
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6 bg-[var(--color-surface)] p-1 rounded-xl">
-          {['profile', 'history', 'prescriptions'].map(t => (
+          {['profile', 'family', 'history', 'prescriptions'].map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
               className={`flex-1 py-2 px-4 rounded-lg text-sm font-bold capitalize transition-colors ${tab === t ? 'bg-[var(--color-primary)] text-black' : 'text-[var(--color-text-muted)] hover:text-white'}`}
             >
-              {t}
+              {t === 'family' ? '👥 Family Members' : t}
             </button>
           ))}
         </div>
@@ -184,6 +193,146 @@ export default function PatientDashboard() {
                   <button type="submit" className="btn-primary">Save Changes</button>
                 </div>
               </form>
+            )}
+
+            {tab === 'family' && (
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h2 className="text-lg font-bold">Family Members</h2>
+                    <p className="text-xs text-[var(--color-text-muted)]">Manage family members linked to your login for instant adjacent bookings.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddDashboardForm(!showAddDashboardForm)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                    style={{
+                      background: 'rgba(var(--color-primary-rgb),0.12)',
+                      color: 'var(--color-primary)',
+                      border: '1.5px solid rgba(var(--color-primary-rgb),0.3)',
+                    }}
+                  >
+                    {showAddDashboardForm ? '✕ Close Form' : '➕ Add Family Member'}
+                  </button>
+                </div>
+
+                {showAddDashboardForm && (
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      setAddingFamily(true);
+                      try {
+                        const { data } = await api.post('/auth/family', newMemberForm);
+                        if (data.success) {
+                          toast.success('Family member added successfully!');
+                          updateUser({ familyMembers: data.familyMembers });
+                          setNewMemberForm({ name: '', relationship: 'Spouse', phone: '' });
+                          setShowAddDashboardForm(false);
+                        }
+                      } catch (err) {
+                        toast.error(err.response?.data?.message || 'Failed to add family member');
+                      } finally {
+                        setAddingFamily(false);
+                      }
+                    }}
+                    className="p-4 bg-[var(--color-surface2)] rounded-xl border border-[var(--color-border)] mb-6 space-y-4"
+                  >
+                    <h3 className="text-sm font-bold text-white">New Family Member Details</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-1">Full Name</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Shanthi Fernando"
+                          className="input w-full"
+                          value={newMemberForm.name}
+                          onChange={e => setNewMemberForm({ ...newMemberForm, name: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-1">Relationship</label>
+                        <select
+                          className="input w-full"
+                          value={newMemberForm.relationship}
+                          onChange={e => setNewMemberForm({ ...newMemberForm, relationship: e.target.value })}
+                          style={{ height: '42px', background: 'rgba(255,255,255,0.05)', color: 'white' }}
+                        >
+                          {['Spouse', 'Child', 'Parent', 'Sibling', 'Grandparent', 'Other'].map(r => (
+                            <option key={r} value={r} style={{ background: '#0c0f17', color: 'white' }}>{r}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-1">Mobile Number (Optional)</label>
+                        <input
+                          type="tel"
+                          placeholder="e.g. +94 77..."
+                          className="input w-full"
+                          value={newMemberForm.phone}
+                          onChange={e => setNewMemberForm({ ...newMemberForm, phone: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <button type="submit" disabled={addingFamily} className="btn-primary">
+                        {addingFamily ? 'Saving...' : 'Add Family Member'}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {(!user?.familyMembers || user.familyMembers.length === 0) ? (
+                  <div className="p-8 bg-[var(--color-surface2)] rounded-lg text-center border border-dashed border-[var(--color-border)]">
+                    <p className="text-[var(--color-text-muted)] text-sm mb-2">No family members linked to your profile yet.</p>
+                    <p className="text-xs text-[var(--color-text-muted)]/60">Add family members to easily book adjacent slots for them.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {user.familyMembers.map(m => (
+                      <div key={m._id} className="p-4 bg-[var(--color-surface2)] rounded-xl border border-[var(--color-border)] flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-[var(--color-primary)]/10 flex items-center justify-center text-lg">
+                            👥
+                          </div>
+                          <div>
+                            <p className="font-bold text-white">{m.name}</p>
+                            <div className="flex gap-2 items-center mt-1">
+                              <span className="px-2 py-0.5 rounded bg-[var(--color-primary)]/10 text-[10px] text-[var(--color-primary)] font-bold uppercase tracking-wider">
+                                {m.relationship}
+                              </span>
+                              {m.phone && (
+                                <span className="text-[11px] text-[var(--color-text-muted)]">
+                                  📞 {m.phone}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (window.confirm(`Are you sure you want to remove ${m.name}?`)) {
+                              try {
+                                const { data } = await api.delete(`/auth/family/${m._id}`);
+                                if (data.success) {
+                                  toast.success('Family member removed successfully');
+                                  updateUser({ familyMembers: data.familyMembers });
+                                }
+                              } catch (err) {
+                                toast.error('Failed to remove family member');
+                              }
+                            }
+                          }}
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold text-red-400 hover:text-red-300 transition-all cursor-pointer border border-transparent hover:border-red-500/20 hover:bg-red-500/5"
+                        >
+                          🗑️ Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
 
             {tab === 'history' && (
