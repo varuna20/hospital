@@ -171,7 +171,6 @@ export default function DoctorCalendar() {
               const hospCity = s.hospital?.city || hospital?.city || '';
               const timeStr = `${s.startTime} - ${s.endTime}`;
 
-              return (
               const sHasBooking = s.count > 0;
               return (
                 <div 
