@@ -102,24 +102,67 @@ export default function SuperSystem() {
     catch(e){ toast.error(e.response?.data?.message||'Test failed'); } finally{setTesting(t=>({...t,sms:false}));}
   };
 
+  const [progress, setProgress] = useState(null);
+
+  const startProgressPolling = () => {
+    // Initial loading state
+    setProgress({ active: true, type: 'init', progress: 0, step: 'Connecting to system database...' });
+    
+    const interval = setInterval(() => {
+      api.get('/backup/progress-status')
+        .then(r => {
+          const status = r.data.status;
+          setProgress(status);
+          
+          if (!status.active) {
+            clearInterval(interval);
+            // Refresh lists on backup complete
+            api.get('/backup/list')
+              .then(b => setBackups(b.data.backups || []))
+              .catch(() => {});
+            
+            if (status.success) {
+              toast.success(`${status.type === 'backup' ? 'Backup' : 'Restore'} finished successfully!`);
+            } else if (status.error) {
+              toast.error(`${status.type === 'backup' ? 'Backup' : 'Restore'} failed: ${status.error}`);
+            }
+            
+            // Auto clear progress card after 6 seconds
+            setTimeout(() => setProgress(null), 6000);
+          }
+        })
+        .catch(() => {
+          clearInterval(interval);
+          setProgress(null);
+        });
+    }, 600);
+  };
+
   const triggerBackup = async () => {
     setBacking(true);
     try {
-      const { data } = await api.post('/backup/now');
-      toast.success(data.message || 'Backup started');
-      setTimeout(()=>{ api.get('/backup/list').then(r=>setBackups(r.data.backups||[])).catch(()=>{}); }, 4000);
-    } catch(e){ toast.error(e.response?.data?.message||'Backup failed'); }
-    finally{ setBacking(false); }
+      await api.post('/backup/now');
+      toast.success('Backup sequence initialized in the background');
+      startProgressPolling();
+    } catch(e){ 
+      toast.error(e.response?.data?.message||'Backup initialization failed'); 
+    } finally { 
+      setBacking(false); 
+    }
   };
 
   const restoreBackup = async (filename) => {
     if (!window.confirm(`⚠️ RESTORE from "${filename}"?\n\nThis will REPLACE ALL current data. This cannot be undone.\n\nAre you sure?`)) return;
     setRestoring(filename);
     try {
-      const { data } = await api.post('/backup/restore/' + filename);
-      toast.success(data.message);
-    } catch(e){ toast.error(e.response?.data?.message||'Restore failed'); }
-    finally{ setRestoring(''); }
+      await api.post('/backup/restore/' + filename);
+      toast.success('Restore sequence initialized in the background');
+      startProgressPolling();
+    } catch(e){ 
+      toast.error(e.response?.data?.message||'Restore initialization failed'); 
+    } finally { 
+      setRestoring(''); 
+    }
   };
 
   const deleteBackup = async (filename) => {
@@ -273,6 +316,35 @@ export default function SuperSystem() {
       {/* BACKUP TAB */}
       {activeTab==='backup'&&(
         <div className="max-w-3xl space-y-4">
+          {progress && (
+            <div className="card border animate-fadeIn" style={{ borderColor: progress.error ? 'rgba(239,68,68,0.3)' : progress.success ? 'rgba(16,185,129,0.3)' : 'rgba(var(--color-primary-rgb),0.3)' }}>
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span>{progress.type === 'backup' ? '💾' : progress.type === 'restore' ? '↩' : '⏳'}</span>
+                  {progress.type === 'backup' ? 'Database Backup Sequence Active' : progress.type === 'restore' ? 'Database Restore Sequence Active' : 'Task Initializing'}
+                </h4>
+                <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full" 
+                  style={{ background: progress.error ? 'rgba(239,68,68,0.2)' : progress.success ? 'rgba(16,185,129,0.2)' : 'rgba(var(--color-primary-rgb),0.2)',
+                           color: progress.error ? '#f87171' : progress.success ? '#10b981' : 'var(--color-primary)' }}>
+                  {progress.progress}%
+                </span>
+              </div>
+              
+              {/* Progress track */}
+              <div className="w-full bg-slate-800 rounded-full h-3.5 overflow-hidden mb-2 relative">
+                <div className="h-full rounded-full transition-all duration-300"
+                  style={{ width: `${progress.progress}%`,
+                           background: progress.error ? '#ef4444' : progress.success ? '#10b981' : 'var(--color-primary)' }} />
+              </div>
+
+              {/* Progress step */}
+              <div className="flex items-center gap-2 text-xs font-medium" style={{ color: progress.error ? '#f87171' : 'var(--color-text-muted)' }}>
+                {!(progress.error || progress.success) && <span className="animate-spin inline-block">⏳</span>}
+                <span>{progress.step}</span>
+              </div>
+            </div>
+          )}
+
           <div className="card">
             <h3 className="section-title mb-4">Backup Configuration</h3>
             <div className="divide-y mb-4" style={{ borderColor:'var(--color-border)' }}>

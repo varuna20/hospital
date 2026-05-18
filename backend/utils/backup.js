@@ -1,79 +1,60 @@
+/**
+ * BACKUP UTILITY
+ * ==============
+ * - Daily automated backup via node-cron
+ * - Backs up all MongoDB collections to JSON files
+ * - Supports local and network destinations
+ * - Manual trigger via API
+ */
 const fs   = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
 const cron = require('node-cron');
-const archiver = require('archiver');
 const { SystemSettings } = require('../models/SystemSettings');
 
-const BACKUP_DIR = process.env.BACKUP_DIR || path.join(__dirname, '../backups');
-const UPLOADS_DIR = path.join(__dirname, '../uploads');
+const BACKUP_DIR = process.env.BACKUP_DIR || path.join(__dirname, '../../backups');
 
-/**
- * Enhanced Backup: Database + Uploads Media
- */
-async function runBackup(io = null) {
+async function runBackup() {
   const startTime = Date.now();
-  console.log('📦 Starting comprehensive backup (DB + Media)...');
+  console.log('📦 Starting database backup...');
+
+  global.backupProgress = {
+    active: true,
+    type: 'backup',
+    progress: 5,
+    step: 'Initializing backup directory...',
+    error: null,
+    success: false
+  };
 
   try {
     if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
 
     const timestamp  = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const finalZipPath = path.join(BACKUP_DIR, `full_backup_${timestamp}.zip`);
-    const tempZipPath = finalZipPath + '.tmp';
-    
-    const output = fs.createWriteStream(tempZipPath);
-    const archive = archiver('zip', { zlib: { level: 9 } });
+    const backupFile = path.join(BACKUP_DIR, `backup_${timestamp}.json`);
 
-    // Handle archive events
-    const archiveFinished = new Promise((resolve, reject) => {
-      output.on('close', resolve);
-      archive.on('error', reject);
-    });
+    global.backupProgress.step = 'Listing database collections...';
+    global.backupProgress.progress = 12;
 
-    archive.pipe(output);
-
-    // Progress tracking
-    let totalEntries = 0;
-    if (io) {
-      archive.on('progress', (data) => {
-        const progress = {
-          percent: data.entries.total ? Math.round((data.entries.processed / data.entries.total) * 100) : 0,
-          processed: data.entries.processed,
-          total: data.entries.total || '...'
-        };
-        io.emit('backup_progress', progress);
-      });
-    }
-    
-    // 1. Database Dump
+    // Collect all collections
     const collections = await mongoose.connection.db.listCollections().toArray();
-    const dbDump = { timestamp: new Date(), version: '4.0', collections: {} };
+    const backup = { timestamp: new Date(), version: '3.0', collections: {} };
 
-    for (const col of collections) {
-      if (col.name.startsWith('system.')) continue;
+    for (let i = 0; i < collections.length; i++) {
+      const col = collections[i];
+      const pct = Math.floor(15 + ((i / collections.length) * 70));
+      global.backupProgress.step = `Exporting collection ${col.name} (${i + 1}/${collections.length})...`;
+      global.backupProgress.progress = pct;
+
       const docs = await mongoose.connection.db.collection(col.name).find({}).toArray();
-      dbDump.collections[col.name] = docs;
-    }
-    
-    archive.append(JSON.stringify(dbDump, null, 2), { name: 'database.json' });
-
-    // 2. Uploads Directory
-    if (fs.existsSync(UPLOADS_DIR)) {
-      archive.directory(UPLOADS_DIR, 'uploads');
+      backup.collections[col.name] = docs;
     }
 
-    // Finalize
-    await archive.finalize();
-    await archiveFinished;
+    global.backupProgress.step = 'Writing JSON backup file to local disk...';
+    global.backupProgress.progress = 88;
 
-    // Rename temp to final only after it's finished!
-    fs.renameSync(tempZipPath, finalZipPath);
-    const backupZip = finalZipPath;
-
-    const sizeMB = (fs.statSync(backupZip).size / 1024 / 1024).toFixed(2);
-
-    if (io) io.emit('backup_progress', { percent: 100, status: 'complete', file: path.basename(backupZip) });
+    fs.writeFileSync(backupFile, JSON.stringify(backup, null, 2));
+    const sizeMB = (fs.statSync(backupFile).size / 1024 / 1024).toFixed(2);
 
     // Clean up old backups (keep last 30 days)
     cleanOldBackups(30);
@@ -82,28 +63,37 @@ async function runBackup(io = null) {
     const settings = await SystemSettings.findOne();
     if (settings?.backup?.destination === 'network' || settings?.backup?.destination === 'both') {
       if (settings.backup.networkPath) {
-        if (!fs.existsSync(settings.backup.networkPath)) {
-          fs.mkdirSync(settings.backup.networkPath, { recursive: true });
-        }
-        const netFile = path.join(settings.backup.networkPath, `full_backup_${timestamp}.zip`);
-        try { fs.copyFileSync(backupZip, netFile); console.log('📡 Backup copied to network:', netFile); }
+        global.backupProgress.step = 'Copying backup file to network storage path...';
+        global.backupProgress.progress = 95;
+        const netFile = path.join(settings.backup.networkPath, `backup_${timestamp}.json`);
+        try { fs.copyFileSync(backupFile, netFile); console.log('📡 Backup copied to network:', netFile); }
         catch (e) { console.warn('Network backup failed:', e.message); }
       }
     }
 
     // Update last backup time
-    await SystemSettings.findOneAndUpdate({}, { 
-      'backup.lastBackup': new Date(), 
-      'backup.lastBackupStatus': 'success' 
-    });
+    await SystemSettings.findOneAndUpdate({}, { 'backup.lastBackup': new Date(), 'backup.lastBackupStatus': 'success' });
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`✅ Backup complete: ${backupZip} (${sizeMB} MB, ${duration}s)`);
-    return { success: true, file: backupZip, sizeMB, duration };
+    console.log(`✅ Backup complete: ${backupFile} (${sizeMB} MB, ${duration}s)`);
+
+    global.backupProgress.step = 'Database backup complete!';
+    global.backupProgress.progress = 100;
+    global.backupProgress.active = false;
+    global.backupProgress.success = true;
+
+    return { success: true, file: backupFile, sizeMB, duration };
 
   } catch (err) {
     console.error('❌ Backup failed:', err.message);
     await SystemSettings.findOneAndUpdate({}, { 'backup.lastBackupStatus': 'failed' }).catch(() => {});
+    
+    global.backupProgress.step = 'Backup failed: ' + err.message;
+    global.backupProgress.progress = 100;
+    global.backupProgress.active = false;
+    global.backupProgress.error = err.message;
+    global.backupProgress.success = false;
+
     return { success: false, error: err.message };
   }
 }
@@ -120,6 +110,7 @@ function cleanOldBackups(retentionDays = 30) {
 }
 
 function startBackupScheduler() {
+  // Default: 1 AM every day
   const schedule = process.env.BACKUP_CRON || '0 1 * * *';
   cron.schedule(schedule, async () => {
     console.log('⏰ Scheduled backup triggered');

@@ -12,6 +12,16 @@ const path = require('path');
 const dotenv = require('dotenv');
 dotenv.config();
 
+// Global Backup & Restore progress tracker
+global.backupProgress = {
+  active: false,
+  type: 'none',
+  progress: 0,
+  step: '',
+  error: null,
+  success: false
+};
+
 const app    = express();
 const server = http.createServer(app);
 
