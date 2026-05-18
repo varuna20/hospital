@@ -14,6 +14,7 @@ const path    = require('path');
 const fs      = require('fs');
 const readline = require('readline');
 const { pipeline } = require('stream/promises');
+const { EJSON } = require('bson');          // faithful BSON type restoration
 const { protect, superAdminOnly } = require('../middleware/auth');
 const { runBackup } = require('../utils/backup');
 
@@ -131,7 +132,7 @@ router.post('/restore/:filename', async (req, res) => {
           const trimmed = line.trim();
           if (!trimmed) continue;
           try {
-            batch.push(JSON.parse(trimmed));
+            batch.push(EJSON.parse(trimmed));  // ← restores ObjectId, Date, Binary as real BSON
           } catch (_) { continue; }
 
           if (batch.length >= 100) {

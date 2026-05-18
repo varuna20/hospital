@@ -14,6 +14,7 @@ const path     = require('path');
 const { Readable } = require('stream');
 const archiver = require('archiver');
 const mongoose = require('mongoose');
+const { EJSON }  = require('bson');          // bundled with mongoose → faithful BSON round-trip
 const cron     = require('node-cron');
 const { SystemSettings } = require('../models/SystemSettings');
 
@@ -33,7 +34,7 @@ function streamCollection(archive, colName, db) {
       try {
         let doc;
         while ((doc = await cursor.next()) !== null) {
-          readable.push(JSON.stringify(doc) + '\n');
+          readable.push(EJSON.stringify(doc) + '\n');  // preserves ObjectId, Date, Binary…
           count++;
         }
         readable.push(null); // signal end-of-stream
