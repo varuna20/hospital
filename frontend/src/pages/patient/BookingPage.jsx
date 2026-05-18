@@ -20,7 +20,7 @@ function StepDot({ n, current, done }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <div style={{
         width: 32, height: 32, borderRadius: '50%',
-        display: 'flex', alignItems: 'center', justify-content: 'center',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: 13, fontWeight: 700, transition: 'all 0.3s',
         background: done ? 'var(--color-primary)' : current ? 'rgba(var(--color-primary-rgb),0.2)' : 'rgba(255,255,255,0.05)',
         color: done || current ? 'var(--color-primary)' : 'rgba(255,255,255,0.3)',
