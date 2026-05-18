@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import moment from 'moment';
-import { todayISO, fMoney } from '../../utils/helpers';
+import { todayISO, fMoney, waitEstimateFromMins } from '../../utils/helpers';
 
 export default function StaffBooking() {
   const { hospital } = useAuth();
@@ -178,7 +178,7 @@ export default function StaffBooking() {
             <p className="text-sm mb-2" style={{ color: 'var(--color-text-muted)' }}>
               Session: {result.appointment?.sessionLabel || 'General'}
             </p>
-            <p className="text-sm mb-2" style={{ color: 'var(--color-text-muted)' }}>Estimated wait: ~{result.estimatedWaitMinutes} mins</p>
+            <p className="text-sm mb-2" style={{ color: 'var(--color-text-muted)' }}>Estimated wait: {waitEstimateFromMins(result.estimatedWaitMinutes)}</p>
             {result.fees?.totalAmount > 0 && (
               <div className="rounded-xl p-3 mb-4" style={{ background: 'var(--color-surface2)' }}>
                 <div className="flex justify-between text-sm">

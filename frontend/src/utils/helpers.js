@@ -6,5 +6,16 @@ export const timeAgo = d => d ? formatDistanceToNow(new Date(d), { addSuffix: tr
 export const todayISO = () => new Date().toISOString().split('T')[0];
 export const statusLabel = s => ({ booked:'Booked', arrived:'Arrived', 'in-progress':'In Progress', completed:'Completed', absent:'Absent', cancelled:'Cancelled' }[s] || s);
 export const statusBadge = s => ({ booked:'badge-booked', arrived:'badge-arrived', 'in-progress':'badge-progress', completed:'badge-completed', absent:'badge-absent', cancelled:'badge-cancelled' }[s] || 'badge-booked');
-export const waitEstimate = (n, mins=15) => n<=0 ? 'Your turn!' : n*mins<60 ? `~${n*mins} min` : `~${Math.floor(n*mins/60)}h ${(n*mins)%60}m`;
+export const waitEstimateFromMins = (totalMins) => {
+  if (totalMins <= 0) return 'Your turn!';
+  const targetDate = new Date(Date.now() + totalMins * 60 * 1000);
+  let hours = targetDate.getHours();
+  const minutes = targetDate.getMinutes();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const minutesStr = minutes < 10 ? '0' + minutes : minutes;
+  return `~ ${hours}:${minutesStr} ${ampm} (${totalMins < 60 ? `${totalMins} mins` : `${Math.floor(totalMins/60)}h ${totalMins%60}m`})`;
+};
+export const waitEstimate = (n, mins=15) => waitEstimateFromMins(n * mins);
 export const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];

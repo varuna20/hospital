@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api, { fUrl } from '../../utils/api';
 import toast from 'react-hot-toast';
+import { waitEstimateFromMins } from '../../utils/helpers';
 
 export default function KioskApp() {
   const { hospitalId } = useParams();
@@ -229,7 +230,7 @@ export default function KioskApp() {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between"><span className="text-gray-500">Doctor</span><span className="font-bold">{selectedDoc.name}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500">Patient</span><span className="font-bold">{form.name}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Wait Time</span><span className="font-bold">~{bookingRes.estimatedWaitMinutes} mins</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Wait Time</span><span className="font-bold">{waitEstimateFromMins(bookingRes.estimatedWaitMinutes)}</span></div>
               </div>
             </div>
 

@@ -102,7 +102,7 @@ export default function QueueStatus() {
           <div className="card text-center mb-4" style={{ borderColor: 'rgba(var(--color-primary-rgb),0.3)', background: 'rgba(var(--color-primary-rgb),0.05)' }}>
             <p className="text-sm mb-1" style={{ color: 'var(--color-text-muted)' }}>Estimated Wait</p>
             <p className="text-2xl font-bold" style={{ color: 'var(--color-primary)', fontFamily: 'Sora,sans-serif' }}>
-              {waitEstimate(status.peopleAhead)}
+              {waitEstimate(status.peopleAhead, status.avgSlotMinutes || 15)}
             </p>
           </div>
         )}
