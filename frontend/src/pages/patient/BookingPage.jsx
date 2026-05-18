@@ -75,7 +75,7 @@ function SelectCard({ selected, onClick, children, disabled }) {
 }
 
 export default function BookingPage() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const { slug } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -96,6 +96,11 @@ export default function BookingPage() {
   const [loading, setLoading]         = useState(false);
   const [booking, setBooking]         = useState(null);
   const [isRefundable, setIsRefundable] = useState(false);
+  const [hasBookingToday, setHasBookingToday] = useState(false);
+  const [selectedMemberId, setSelectedMemberId] = useState('myself');
+  const [showAddFamilyForm, setShowAddFamilyForm] = useState(false);
+  const [familyForm, setFamilyForm] = useState({ name: '', relationship: 'Spouse', phone: '' });
+  const [addingFamily, setAddingFamily] = useState(false);
 
   const sym = selHospital?.payment?.currencySymbol || 'Rs.';
 
@@ -114,6 +119,38 @@ export default function BookingPage() {
       r.style.setProperty('--color-primary-rgb', rgb);
     }
   }, [selHospital]);
+
+  // Check duplicate booking today
+  useEffect(() => {
+    if (!form.phone || !selHospital?._id || !date) {
+      setHasBookingToday(false);
+      return;
+    }
+    const t = setTimeout(() => {
+      api.post('/appointments/check-duplicate', {
+        name: form.name,
+        phone: form.phone,
+        hospitalId: selHospital._id,
+        appointmentDate: date
+      }).then(({ data }) => {
+        setHasBookingToday(data.hasBooking);
+      }).catch(() => {});
+    }, 600);
+    return () => clearTimeout(t);
+  }, [form.name, form.phone, date, selHospital]);
+
+  // Sync selected family member to form fields
+  useEffect(() => {
+    if (!user) return;
+    if (selectedMemberId === 'myself') {
+      setForm(f => ({ ...f, name: user.name, phone: user.phone || '' }));
+    } else {
+      const member = user.familyMembers?.find(m => m._id.toString() === selectedMemberId);
+      if (member) {
+        setForm(f => ({ ...f, name: member.name, phone: member.phone || user.phone || '' }));
+      }
+    }
+  }, [selectedMemberId, user]);
 
   // Load hospitals (or pre-select via slug)
   useEffect(() => {
@@ -647,6 +684,194 @@ export default function BookingPage() {
                   </p>
                 </div>
               </div>
+
+              {/* Family Member Selection */}
+              {user && user.role === 'patient' && (
+                <div style={{ marginBottom: 24, textAlign: 'left' }}>
+                  <label style={{ display: 'block', color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+                    Who is this booking for?
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {/* Myself */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMemberId('myself')}
+                      style={{
+                        background: selectedMemberId === 'myself' ? 'rgba(var(--color-primary-rgb),0.12)' : 'rgba(255,255,255,0.03)',
+                        border: `1.5px solid ${selectedMemberId === 'myself' ? 'var(--color-primary)' : 'rgba(255,255,255,0.08)'}`,
+                        borderRadius: 12,
+                        padding: '10px 14px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-start',
+                        gap: 2,
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      <span style={{ color: 'white', fontSize: 13, fontWeight: 700 }}>👤 Myself</span>
+                      <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>Account Owner</span>
+                    </button>
+
+                    {/* Family Members */}
+                    {user.familyMembers?.map(m => (
+                      <button
+                        key={m._id}
+                        type="button"
+                        onClick={() => setSelectedMemberId(m._id.toString())}
+                        style={{
+                          background: selectedMemberId === m._id.toString() ? 'rgba(var(--color-primary-rgb),0.12)' : 'rgba(255,255,255,0.03)',
+                          border: `1.5px solid ${selectedMemberId === m._id.toString() ? 'var(--color-primary)' : 'rgba(255,255,255,0.08)'}`,
+                          borderRadius: 12,
+                          padding: '10px 14px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'flex-start',
+                          gap: 2,
+                          transition: 'all 0.2s',
+                          position: 'relative'
+                        }}
+                      >
+                        <span style={{ color: 'white', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%', textAlign: 'left' }}>
+                          👥 {m.name}
+                        </span>
+                        <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>{m.relationship}</span>
+                      </button>
+                    ))}
+
+                    {/* Add Family Button */}
+                    <button
+                      type="button"
+                      onClick={() => setShowAddFamilyForm(true)}
+                      style={{
+                        background: 'rgba(255,255,255,0.01)',
+                        border: '1.5px dashed rgba(255,255,255,0.15)',
+                        borderRadius: 12,
+                        padding: '10px 14px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 2,
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--color-primary)'}
+                      onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'}
+                    >
+                      <span style={{ color: 'var(--color-primary)', fontSize: 13, fontWeight: 700 }}>➕ Add New</span>
+                      <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10 }}>Family Member</span>
+                    </button>
+                  </div>
+
+                  {/* Add Family Inline Modal/Form */}
+                  {showAddFamilyForm && (
+                    <div style={{
+                      background: 'rgba(255,255,255,0.02)',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      borderRadius: 14,
+                      padding: '16px',
+                      marginTop: 16,
+                      animation: 'slideDown 0.2s ease'
+                    }}>
+                      <h4 style={{ color: 'white', fontSize: 13, fontWeight: 700, margin: '0 0 12px 0' }}>Add Family Member</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                        <div>
+                          <label style={{ display: 'block', color: 'rgba(255,255,255,0.4)', fontSize: 10, marginBottom: 4 }}>Full Name</label>
+                          <input
+                            type="text"
+                            placeholder="Full Name"
+                            value={familyForm.name}
+                            onChange={e => setFamilyForm(f => ({ ...f, name: e.target.value }))}
+                            style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 12px', color: 'white', fontSize: 13, boxSizing: 'border-box' }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', color: 'rgba(255,255,255,0.4)', fontSize: 10, marginBottom: 4 }}>Relationship</label>
+                          <select
+                            value={familyForm.relationship}
+                            onChange={e => setFamilyForm(f => ({ ...f, relationship: e.target.value }))}
+                            style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 12px', color: 'white', fontSize: 13, boxSizing: 'border-box', height: '37px', outline: 'none' }}
+                          >
+                            {['Spouse', 'Child', 'Parent', 'Sibling', 'Grandparent', 'Other'].map(r => (
+                              <option key={r} value={r} style={{ background: '#0c0f17', color: 'white' }}>{r}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', color: 'rgba(255,255,255,0.4)', fontSize: 10, marginBottom: 4 }}>Mobile (Optional)</label>
+                          <input
+                            type="tel"
+                            placeholder="+94 77 ..."
+                            value={familyForm.phone}
+                            onChange={e => setFamilyForm(f => ({ ...f, phone: e.target.value }))}
+                            style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 12px', color: 'white', fontSize: 13, boxSizing: 'border-box' }}
+                          />
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                        <button
+                          type="button"
+                          onClick={() => setShowAddFamilyForm(false)}
+                          style={{ background: 'transparent', color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          disabled={addingFamily || !familyForm.name}
+                          onClick={async () => {
+                            setAddingFamily(true);
+                            try {
+                              const { data } = await api.post('/auth/family', familyForm);
+                              if (data.success) {
+                                toast.success('Family member added successfully!');
+                                updateUser({ familyMembers: data.familyMembers });
+                                setFamilyForm({ name: '', relationship: 'Spouse', phone: '' });
+                                setShowAddFamilyForm(false);
+                                // Automatically select the new member!
+                                const newMember = data.familyMembers[data.familyMembers.length - 1];
+                                if (newMember) setSelectedMemberId(newMember._id.toString());
+                              }
+                            } catch (e) {
+                              toast.error(e.response?.data?.message || 'Failed to add family member');
+                            } finally {
+                              setAddingFamily(false);
+                            }
+                          }}
+                          style={{ background: 'var(--color-primary)', color: 'black', border: 'none', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: addingFamily || !familyForm.name ? 'not-allowed' : 'pointer' }}
+                        >
+                          {addingFamily ? 'Saving...' : 'Add Member'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Warning */}
+              {hasBookingToday && (
+                <div style={{
+                  background: 'rgba(245,158,11,0.08)',
+                  border: '1px solid rgba(245,158,11,0.25)',
+                  borderRadius: 14,
+                  padding: '12px 16px',
+                  marginBottom: 20,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  textAlign: 'left'
+                }}>
+                  <span style={{ fontSize: 20 }}>⚠️</span>
+                  <div>
+                    <p style={{ color: '#fbbf24', fontSize: 13, fontWeight: 700, margin: 0 }}>Multiple Booking Warning</p>
+                    <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, margin: '2px 0 0 0', lineHeight: 1.3 }}>
+                      A booking already exists for today under this name/number. Please proceed only if this is intended.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Form fields */}
               {[

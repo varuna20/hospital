@@ -381,5 +381,42 @@ router.get('/hospital/:slug', async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
+// ── FAMILY MEMBERS MANAGEMENT (Patients Only) ──────────────────────
+// Add a family member
+router.post('/family', protect, async (req, res) => {
+  try {
+    if (req.user.role !== 'patient') return res.status(403).json({ success: false, message: 'Patients only' });
+    
+    const { name, relationship, phone, dateOfBirth, gender } = req.body;
+    if (!name || !relationship) return res.status(400).json({ success: false, message: 'Name and relationship are required' });
+    
+    const patient = await Patient.findById(req.user._id);
+    if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });
+    
+    patient.familyMembers.push({ name, relationship, phone, dateOfBirth, gender });
+    await patient.save();
+    
+    res.status(201).json({ success: true, familyMembers: patient.familyMembers });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Delete a family member
+router.delete('/family/:memberId', protect, async (req, res) => {
+  try {
+    if (req.user.role !== 'patient') return res.status(403).json({ success: false, message: 'Patients only' });
+    
+    const patient = await Patient.findById(req.user._id);
+    if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });
+    
+    patient.familyMembers = patient.familyMembers.filter(m => m._id.toString() !== req.params.memberId);
+    await patient.save();
+    
+    res.json({ success: true, familyMembers: patient.familyMembers });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
 
 module.exports = router;

@@ -47,6 +47,33 @@ async function getDoctorConsultMinutes(doctorId, defaultMins = 15) {
   return defaultMins;
 }
 
+// Check duplicate booking
+aptRouter.post('/check-duplicate', async (req, res) => {
+  try {
+    const { name, phone, hospitalId, appointmentDate } = req.body;
+    if (!phone || !hospitalId) return res.json({ success: true, hasBooking: false });
+    
+    const bookingDate = moment(appointmentDate).startOf('day').toDate();
+    
+    // Find all patients with this phone and hospitalId
+    const patients = await Patient.find({ phone, hospitalId });
+    if (patients.length === 0) return res.json({ success: true, hasBooking: false });
+    
+    const patientIds = patients.map(p => p._id);
+    
+    // Count active appointments for these patient profiles on this date
+    const count = await Appointment.countDocuments({
+      appointmentDate: bookingDate,
+      status: { $nin: ['cancelled', 'absent'] },
+      patient: { $in: patientIds }
+    });
+    
+    res.json({ success: true, hasBooking: count > 0, count });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // Book appointment
 aptRouter.post('/book', async (req, res) => {
   try {

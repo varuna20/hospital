@@ -28,7 +28,16 @@ const patientSchema = new mongoose.Schema({
   isPhoneVerified: { type: Boolean, default: false },
 
   // Opt-in for WhatsApp notifications
-  whatsappOptIn: { type: Boolean, default: true }
+  whatsappOptIn: { type: Boolean, default: true },
+
+  // Family members under the same login
+  familyMembers: [{
+    name: { type: String, required: true },
+    relationship: { type: String, required: true },
+    phone: String,
+    dateOfBirth: Date,
+    gender: { type: String, enum: ['male', 'female', 'other'] }
+  }]
 }, { timestamps: true });
 
 patientSchema.pre('save', async function(next) {
