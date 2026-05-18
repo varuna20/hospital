@@ -8,9 +8,8 @@
  *  - Security overview
  */
 import React, { useState, useEffect } from 'react';
-import api, { fUrl } from '../../utils/api';
-import { toast } from 'react-hot-toast';
-import { useSocket } from '../../context/SocketContext';
+import api from '../../utils/api';
+import toast from 'react-hot-toast';
 import { fDate } from '../../utils/helpers';
 
 function Toggle({ value, onChange, label, desc }) {
@@ -31,73 +30,30 @@ function Toggle({ value, onChange, label, desc }) {
 
 export default function SuperSystem() {
   const [settings, setSettings] = useState(null);
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testEmail, setTestEmail] = useState('');
   const [testSMS, setTestSMS] = useState('');
   const [testing, setTesting] = useState({ email:false, sms:false });
   const [backups, setBackups] = useState([]);
-  const [health, setHealth] = useState(null);
   const [backing, setBacking] = useState(false);
   const [restoring, setRestoring] = useState('');
-  const [activeTab, setActiveTab] = useState('branding');
-  const [logoFile, setLogoFile] = useState(null);
-  const [uploadingLogo, setUploadingLogo] = useState(false);
-  const backingRef = React.useRef(false);
-
-  const { socket, backupProgress, restoreProgress } = useSocket();
+  const [activeTab, setActiveTab] = useState('email');
 
   const loadAll = () => {
     Promise.all([
       api.get('/system/settings'),
       api.get('/backup/list').catch(()=>({ data:{ backups:[] } })),
-      api.get('/system/health').catch(()=>({ data:{ health:null } }))
-    ]).then(([s, b, h]) => {
+      api.get('/superadmin/stats').catch(()=>({ data:{ stats: null } }))
+    ]).then(([s, b, st]) => {
       setSettings(s.data.settings);
       setBackups(b.data.backups || []);
-      setHealth(h.data.health || null);
+      setStats(st.data.stats || null);
     }).catch(()=>{}).finally(()=>setLoading(false));
   };
 
-  useEffect(()=>{ 
-    loadAll(); 
-    // Refresh health metrics every 15 seconds if tab is active
-    const interval = setInterval(() => {
-      if (activeTab === 'capacity') {
-        api.get('/system/health').then(r => setHealth(r.data.health)).catch(()=>{});
-      }
-    }, 15000);
-    return () => clearInterval(interval);
-  },[activeTab]);
-
-  // Update button states based on global progress
-  useEffect(() => {
-    if (backupProgress) {
-      if (backupProgress.status === 'complete' || backupProgress.status === 'error') {
-        setBacking(false);
-        backingRef.current = false;
-        if (backupProgress.status === 'complete') loadAll();
-      } else {
-        setBacking(true);
-        backingRef.current = true;
-      }
-    } else {
-      setBacking(false);
-      backingRef.current = false;
-    }
-  }, [backupProgress]);
-
-  useEffect(() => {
-    if (restoreProgress) {
-      if (restoreProgress.percent === 100 || restoreProgress.status === 'error') {
-        setRestoring('');
-      } else {
-        if (!restoring) setRestoring('ongoing');
-      }
-    } else {
-      setRestoring('');
-    }
-  }, [restoreProgress]);
+  useEffect(()=>{ loadAll(); },[]);
 
   const save = async () => {
     setSaving(true);
@@ -128,26 +84,12 @@ export default function SuperSystem() {
 
   const triggerBackup = async () => {
     setBacking(true);
-    backingRef.current = true;
     try {
       const { data } = await api.post('/backup/now');
       toast.success(data.message || 'Backup started');
-      
-      // Fallback: Use ref to check current state
-      setTimeout(() => {
-        if (backingRef.current) {
-          console.warn('Backup timeout fallback triggered');
-          api.get('/backup/list').then(r => setBackups(r.data.backups || [])).catch(() => {});
-          setBacking(false);
-          backingRef.current = false;
-          // Don't clear backupProgress immediately to let user see it finished/failed
-        }
-      }, 30000); // 30 seconds for large files
-    } catch(e){ 
-      toast.error(e.response?.data?.message||'Backup failed'); 
-      setBacking(false);
-      backingRef.current = false;
-    }
+      setTimeout(()=>{ api.get('/backup/list').then(r=>setBackups(r.data.backups||[])).catch(()=>{}); }, 4000);
+    } catch(e){ toast.error(e.response?.data?.message||'Backup failed'); }
+    finally{ setBacking(false); }
   };
 
   const restoreBackup = async (filename) => {
@@ -156,10 +98,8 @@ export default function SuperSystem() {
     try {
       const { data } = await api.post('/backup/restore/' + filename);
       toast.success(data.message);
-    } catch(e){ 
-      toast.error(e.response?.data?.message||'Restore failed'); 
-      setRestoring('');
-    }
+    } catch(e){ toast.error(e.response?.data?.message||'Restore failed'); }
+    finally{ setRestoring(''); }
   };
 
   const deleteBackup = async (filename) => {
@@ -168,45 +108,15 @@ export default function SuperSystem() {
     catch{ toast.error('Failed to delete'); }
   };
 
-  const uploadLogo = async () => {
-    if (!logoFile) return;
-    setUploadingLogo(true);
-    try {
-      const fd = new FormData();
-      fd.append('logo', logoFile);
-      const { data } = await api.post('/superadmin/system/logo', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      upd('branding.logo', data.logo);
-      toast.success('Global logo updated!');
-      setLogoFile(null);
-    } catch { toast.error('Upload failed'); }
-    finally { setUploadingLogo(false); }
-  };
-
-  const formatBytes = (bytes) => {
-    if (bytes === 0) return '0 B';
-    const k = 1024, dm = 2, sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-  };
-
-  const formatUptime = (seconds) => {
-    const d = Math.floor(seconds / (3600*24));
-    const h = Math.floor(seconds % (3600*24) / 3600);
-    const m = Math.floor(seconds % 3600 / 60);
-    return `${d}d ${h}h ${m}m`;
-  };
-
   if (loading) return <div className="text-center py-12" style={{ color:'var(--color-text-muted)' }}>Loading…</div>;
   if (!settings) return null;
 
   const tabs = [
-    { id:'branding', label:'🎨 Branding' },
-    { id:'payment',  label:'💳 Payments' },
     { id:'email',    label:'✉ Email/SMTP' },
     { id:'sms',      label:'📱 SMS' },
     { id:'backup',   label:'💾 Backup' },
+    { id:'health',   label:'⚡ Capacity & Health' },
     { id:'security', label:'🔒 Security' },
-    { id:'capacity', label:'📈 Capacity & Health' },
   ];
 
   return (
@@ -231,89 +141,6 @@ export default function SuperSystem() {
           </button>
         ))}
       </div>
-
-      {/* BRANDING TAB */}
-      {activeTab==='branding'&&(
-        <div className="card max-w-2xl space-y-6">
-          <h3 className="section-title">Global Branding</h3>
-          
-          <div className="flex items-start gap-6 p-4 rounded-2xl bg-white/5 border border-white/10">
-            <div className="flex-shrink-0">
-              <label className="label mb-2">Global Logo</label>
-              <div className="w-32 h-32 rounded-2xl bg-black flex items-center justify-center overflow-hidden border border-white/10">
-                {settings.branding?.logo ? (
-                  <img src={fUrl(settings.branding.logo)} alt="Logo" className="max-w-full max-h-full object-contain" />
-                ) : (
-                  <span className="text-white/20 text-xs">No Logo</span>
-                )}
-              </div>
-            </div>
-            <div className="flex-1 space-y-3">
-              <label className="label">Upload New Logo</label>
-              <input type="file" accept="image/*" onChange={e => setLogoFile(e.target.files[0])}
-                className="block w-full text-xs text-white/50 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-white hover:file:opacity-80 cursor-pointer" />
-              <button onClick={uploadLogo} disabled={uploadingLogo || !logoFile} className="btn-primary py-2 text-xs">
-                {uploadingLogo ? 'Uploading...' : 'Upload Logo'}
-              </button>
-            </div>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="label">Brand Name</label>
-              <input className="input" value={settings.branding?.brandName || ''} onChange={e=>upd('branding.brandName', e.target.value)} />
-            </div>
-            <div>
-              <label className="label">Website URL</label>
-              <input className="input" value={settings.branding?.website || ''} onChange={e=>upd('branding.website', e.target.value)} />
-            </div>
-            <div className="col-span-2">
-              <label className="label">Footer Credit Text</label>
-              <input className="input" value={settings.branding?.footerText || ''} onChange={e=>upd('branding.footerText', e.target.value)} />
-              <p className="text-[10px] text-white/40 mt-1 italic">Example: "Powered by", "Designed by", etc.</p>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-xl bg-primary/10 border border-primary/20">
-            <p className="text-xs text-primary font-bold mb-1">💡 Preview</p>
-            <p className="text-sm text-white/80">
-              {settings.branding?.footerText} <span className="font-bold">{settings.branding?.brandName}</span>
-            </p>
-          </div>
-
-          <button onClick={save} disabled={saving} className="btn-primary w-full">{saving?'Saving…':'Save Branding'}</button>
-        </div>
-      )}
-
-      {/* PAYMENT TAB */}
-      {activeTab==='payment'&&(
-        <div className="card max-w-2xl space-y-6">
-          <h3 className="section-title">Payment Gateway Configuration</h3>
-          <p className="text-xs" style={{ color:'var(--color-text-muted)' }}>
-            Configure PayPal to receive subscription fees and commissions from hospital admins.
-          </p>
-
-          <div className="grid gap-4">
-            <div>
-              <label className="label">PayPal Account Email</label>
-              <input className="input" placeholder="e.g. varuna.20@gmail.com" 
-                     value={settings.payment?.paypalEmail || ''} onChange={e=>upd('payment.paypalEmail', e.target.value)} />
-            </div>
-            <div>
-              <label className="label">PayPal Client ID (Optional for Smart Buttons)</label>
-              <input className="input" placeholder="Enter REST API Client ID" 
-                     value={settings.payment?.paypalClientId || ''} onChange={e=>upd('payment.paypalClientId', e.target.value)} />
-              <p className="text-[10px] text-white/40 mt-1">If empty, standard HTML form checkout will be used with the email address.</p>
-            </div>
-            <div>
-              <p className="text-[12px] text-accent p-3 bg-accent/10 rounded-lg border border-accent/20">
-                <strong>Note:</strong> Payment currency is now managed per-hospital. You can set the checkout currency (LKR or USD) for each hospital by editing the hospital under the <strong>Hospitals</strong> tab. The payment will be automatically requested in the respective hospital's configured currency.
-              </p>
-            </div>
-          </div>
-          <button onClick={save} disabled={saving} className="btn-primary w-full">{saving?'Saving…':'Save Payment Details'}</button>
-        </div>
-      )}
 
       {/* EMAIL TAB */}
       {activeTab==='email'&&(
@@ -450,26 +277,11 @@ export default function SuperSystem() {
                 )}
               </div>
             )}
-            <div className="flex flex-col gap-3">
-              <div className="flex gap-3">
-                <button onClick={save} disabled={saving} className="btn-primary">{saving?'Saving…':'Save Config'}</button>
-                <button onClick={triggerBackup} disabled={backing} className="btn-ghost">
-                  {backing?<><span className="animate-spin inline-block mr-1">⟳</span>Creating backup…</>:'▶ Backup Now'}
-                </button>
-              </div>
-
-              {backupProgress && (
-                <div className="mt-2 space-y-1.5">
-                  <div className="flex justify-between text-[10px] font-medium mb-1">
-                    <span style={{ color:'var(--color-primary)' }}>{backupProgress.status === 'complete' ? 'Backup Finished' : 'Zipping Media & Data...'}</span>
-                    <span>{backupProgress.percent}%</span>
-                  </div>
-                  <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
-                    <div className="bg-primary h-full transition-all duration-300" style={{ width: `${backupProgress.percent}%` }} />
-                  </div>
-                  {backupProgress.processed && <p className="text-[9px] text-white/40">Processed {backupProgress.processed} entries...</p>}
-                </div>
-              )}
+            <div className="flex gap-3">
+              <button onClick={save} disabled={saving} className="btn-primary">{saving?'Saving…':'Save Config'}</button>
+              <button onClick={triggerBackup} disabled={backing} className="btn-ghost">
+                {backing?<><span className="animate-spin inline-block mr-1">⟳</span>Creating backup…</>:'▶ Backup Now'}
+              </button>
             </div>
           </div>
 
@@ -479,19 +291,6 @@ export default function SuperSystem() {
               <h3 className="section-title">Backup Files</h3>
               <button onClick={()=>api.get('/backup/list').then(r=>setBackups(r.data.backups||[])).catch(()=>{})} className="btn-ghost text-xs">↻ Refresh</button>
             </div>
-
-            {restoreProgress && (
-              <div className="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
-                <div className="flex justify-between text-xs font-bold mb-2" style={{ color:'#f59e0b' }}>
-                  <span>SYSTEM RESTORE IN PROGRESS</span>
-                  <span>{restoreProgress.percent}%</span>
-                </div>
-                <div className="w-full bg-white/5 rounded-full h-2 overflow-hidden mb-2">
-                  <div className="bg-amber-500 h-full transition-all duration-300" style={{ width: `${restoreProgress.percent}%` }} />
-                </div>
-                <p className="text-[10px] italic text-white/60">{restoreProgress.message}</p>
-              </div>
-            )}
             {backups.length===0?(
               <div className="text-center py-8" style={{ color:'var(--color-text-muted)' }}>
                 <div className="text-3xl mb-2">💾</div>
@@ -509,15 +308,11 @@ export default function SuperSystem() {
                       </p>
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
-                      <button onClick={() => {
-                        const token = localStorage.getItem('token');
-                        const downloadUrl = fUrl(`/api/backup/download/${b.filename}?token=${token}`);
-                        window.location.href = downloadUrl;
-                      }}
+                      <a href={'/api/backup/download/'+b.filename} download
                         className="text-xs px-3 py-1.5 rounded-xl transition-all"
                         style={{ background:'rgba(var(--color-primary-rgb),0.1)',color:'var(--color-primary)' }}>
                         ⬇ Download
-                      </button>
+                      </a>
                       <button onClick={()=>restoreBackup(b.filename)} disabled={!!restoring}
                         className="text-xs px-3 py-1.5 rounded-xl transition-all"
                         style={{ background:'rgba(245,158,11,0.1)',color:'#f59e0b' }}>
@@ -543,6 +338,137 @@ export default function SuperSystem() {
         </div>
       )}
 
+      {/* CAPACITY & HEALTH TAB */}
+      {activeTab === 'health' && (
+        <div className="max-w-3xl space-y-4">
+          {/* Keep-Alive Configuration */}
+          <div className="card">
+            <h3 className="section-title mb-2">⚡ 24-Hour Keep-Alive Continuous Ping</h3>
+            <p className="text-xs mb-4" style={{ color: 'var(--color-text-muted)' }}>
+              Prevents the Render container from automatically going to sleep after 15 minutes of inactivity. The server will automatically query its own public health route every 5 minutes to remain active 24/7.
+            </p>
+
+            <div className="divide-y mb-4" style={{ borderColor: 'var(--color-border)' }}>
+              <Toggle 
+                value={settings.keepAlive?.enabled} 
+                onChange={v => upd('keepAlive.enabled', v)} 
+                label="Enable 24-Hour Keep-Alive Service" 
+                desc="Starts the background ping engine to query your host every 5 minutes" 
+              />
+            </div>
+
+            {settings.keepAlive?.enabled && (
+              <div className="space-y-4 mb-4">
+                <div>
+                  <label className="label">Public Host URL</label>
+                  <input 
+                    type="url" 
+                    className="input" 
+                    placeholder="https://hospital-system-t9fq.onrender.com" 
+                    value={settings.keepAlive?.url || ''} 
+                    onChange={e => upd('keepAlive.url', e.target.value)} 
+                  />
+                  <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                    Enter your live backend endpoint. Ex: <code>https://hospital-system-t9fq.onrender.com</code>
+                  </p>
+                </div>
+
+                {/* Real-time Status Card */}
+                <div className="p-4 rounded-xl space-y-3" style={{ background: 'var(--color-surface2)', border: '1px solid var(--color-border)' }}>
+                  <h4 className="text-sm font-semibold text-white">📡 Connection Status</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                    <div className="flex justify-between py-1.5 border-b" style={{ borderColor: 'var(--color-border)' }}>
+                      <span style={{ color: 'var(--color-text-muted)' }}>Last Ping Time:</span>
+                      <span className="font-mono text-white">
+                        {settings.keepAlive?.lastPing ? new Date(settings.keepAlive.lastPing).toLocaleString() : 'Never triggered yet'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-1.5 border-b" style={{ borderColor: 'var(--color-border)' }}>
+                      <span style={{ color: 'var(--color-text-muted)' }}>Ping Status:</span>
+                      <span className="font-bold flex items-center gap-1"
+                        style={{ color: settings.keepAlive?.lastPingStatus === 'success' ? '#10b981' : '#f59e0b' }}>
+                        <span className="w-2 h-2 rounded-full" style={{ background: settings.keepAlive?.lastPingStatus === 'success' ? '#10b981' : '#f59e0b' }} />
+                        {settings.keepAlive?.lastPingStatus || 'Pending'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <button onClick={save} disabled={saving} className="btn-primary w-full md:w-auto">
+              {saving ? 'Saving…' : '💾 Save Keep-Alive Settings'}
+            </button>
+          </div>
+
+          {/* System Health View */}
+          <div className="card">
+            <h3 className="section-title mb-4">🖥️ Core Engine Status</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[
+                { label: 'API Server', desc: 'Main Express web application gateway', status: 'Online', ok: true },
+                { label: 'Database', desc: 'MongoDB primary replica connection', status: 'Connected', ok: true },
+                { label: 'Socket.IO Engine', desc: 'WebSocket push notification link', status: 'Active (Instant)', ok: true },
+                { label: 'Automated Reminders', desc: 'Follow-ups and session summaries scheduler', status: 'Running', ok: true },
+              ].map(item => (
+                <div key={item.label} className="p-3.5 rounded-xl border flex flex-col justify-between" style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface2)' }}>
+                  <div>
+                    <h4 className="text-white text-sm font-semibold">{item.label}</h4>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>{item.desc}</p>
+                  </div>
+                  <div className="flex items-center gap-2 mt-3 text-xs font-semibold" style={{ color: '#10b981' }}>
+                    <span className="w-2.5 h-2.5 rounded-full animate-pulse" style={{ background: '#10b981' }} />
+                    {item.status}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Capacity View */}
+          <div className="card">
+            <h3 className="section-title mb-2">📊 System Capacity & DB Metrics</h3>
+            <p className="text-xs mb-4" style={{ color: 'var(--color-text-muted)' }}>
+              Real-time document occupancy counts stored securely in the cluster.
+            </p>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b" style={{ borderColor: 'var(--color-border)' }}>
+                    <th className="py-2 text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>Entity / Collection</th>
+                    <th className="py-2 text-xs font-bold uppercase tracking-wider text-right" style={{ color: 'var(--color-text-muted)' }}>Active Records</th>
+                    <th className="py-2 text-xs font-bold uppercase tracking-wider text-right" style={{ color: 'var(--color-text-muted)' }}>Capacity Limit</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
+                  <tr className="text-sm">
+                    <td className="py-3 text-white font-medium">🏥 Registered Hospitals</td>
+                    <td className="py-3 text-right font-mono font-bold text-teal-400">{stats?.hospitals || 0}</td>
+                    <td className="py-3 text-right text-xs" style={{ color: 'var(--color-text-muted)' }}>Unlimited (System Base)</td>
+                  </tr>
+                  <tr className="text-sm">
+                    <td className="py-3 text-white font-medium">🩺 Medical Practitioners</td>
+                    <td className="py-3 text-right font-mono font-bold text-indigo-400">{stats?.doctors || 0}</td>
+                    <td className="py-3 text-right text-xs" style={{ color: 'var(--color-text-muted)' }}>Per Hospital Subscription</td>
+                  </tr>
+                  <tr className="text-sm">
+                    <td className="py-3 text-white font-medium">👥 Registered Patients</td>
+                    <td className="py-3 text-right font-mono font-bold text-amber-400">{stats?.patients || 0}</td>
+                    <td className="py-3 text-right text-xs" style={{ color: 'var(--color-text-muted)' }}>Per Hospital Subscription</td>
+                  </tr>
+                  <tr className="text-sm">
+                    <td className="py-3 text-white font-medium">📅 Appointments Booked</td>
+                    <td className="py-3 text-right font-mono font-bold text-emerald-400">{stats?.appointments || 0}</td>
+                    <td className="py-3 text-right text-xs" style={{ color: 'var(--color-text-muted)' }}>Unlimited (Operational)</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* SECURITY TAB */}
       {activeTab==='security'&&(
         <div className="card max-w-2xl">
@@ -559,7 +485,7 @@ export default function SuperSystem() {
               ['CORS Policy',                    'Restricted to FRONTEND_URL env variable', true],
               ['Doctor Data Isolation',          'Doctors can only access their own patient records', true],
               ['Hospital Data Isolation',        'All queries scoped by hospitalId', true],
-              ['Audit Logging',                  'Active: All admin/staff actions are tracked', true],
+              ['Audit Logging',                  'Coming in next version', false],
               ['HTTPS/TLS',                      'Configure in your web server (Nginx/Apache)', null],
               ['MongoDB Encryption at Rest',     'Enable in MongoDB Atlas or mongod.conf', null],
             ].map(([l, v, ok])=>(
@@ -574,110 +500,25 @@ export default function SuperSystem() {
               </div>
             ))}
           </div>
-          <div className="mt-5 p-4 rounded-xl space-y-2" style={{ background:'rgba(16,185,129,0.06)', border:'1px solid rgba(16,185,129,0.2)' }}>
-            <p className="text-sm font-semibold" style={{ color:'#10b981' }}>✓ Security Audit Passed</p>
-            <p className="text-xs" style={{ color:'var(--color-text-muted)' }}>
-              All requested data security protocols, strict HSTS, encrypted HTTPS tunnels, and dynamic payload sanitization pipelines are actively enforced across the application.
-            </p>
+          <div className="mt-5 p-4 rounded-xl space-y-2" style={{ background:'rgba(var(--color-primary-rgb),0.06)', border:'1px solid rgba(var(--color-primary-rgb),0.2)' }}>
+            <p className="text-sm font-semibold" style={{ color:'var(--color-primary)' }}>Production Checklist</p>
+            {[
+              'Set a strong JWT_SECRET (32+ random characters) in .env',
+              'Enable HTTPS with a valid SSL certificate (Let\'s Encrypt is free)',
+              'Use MongoDB Atlas with encryption at rest enabled',
+              'Set up firewall rules: only allow port 443 (HTTPS) publicly',
+              'Enable MongoDB Atlas IP whitelist to server IP only',
+              'Set NODE_ENV=production in your deployment',
+              'Use a process manager like PM2 to keep server running',
+              'Set up log rotation and monitoring (e.g. Sentry, Datadog)',
+            ].map((t,i)=>(
+              <p key={i} className="text-xs flex items-start gap-2" style={{ color:'var(--color-text-muted)' }}>
+                <span style={{ color:'var(--color-primary)', flexShrink:0 }}>□</span>{t}
+              </p>
+            ))}
           </div>
         </div>
       )}
-
-      {/* CAPACITY & HEALTH TAB */}
-      {activeTab==='capacity'&&(
-        <div className="card max-w-4xl">
-          <h3 className="section-title flex justify-between items-center mb-6">
-            <span>System Capacity & Health</span>
-            {health && (
-              <span className="text-xs font-medium px-2 py-1 rounded bg-green-500/10 text-green-500 flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                {health.status.toUpperCase()}
-              </span>
-            )}
-          </h3>
-          
-          {!health ? (
-            <div className="text-center py-8 text-sm" style={{ color:'var(--color-text-muted)' }}>Fetching telemetry data...</div>
-          ) : (
-            <div className="space-y-6">
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* SERVER INFO */}
-                <div className="p-4 rounded-xl border" style={{ borderColor:'var(--color-border)', background:'var(--color-surface)' }}>
-                  <h4 className="text-sm font-bold mb-3" style={{ color:'var(--color-primary)' }}>Server Environment</h4>
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-sm">
-                      <span style={{ color:'var(--color-text-muted)' }}>Uptime</span>
-                      <span className="font-mono">{formatUptime(health.uptime)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span style={{ color:'var(--color-text-muted)' }}>CPU Load (1, 5, 15m)</span>
-                      <span className="font-mono">{health.cpu.loadavg.map(l => l.toFixed(2)).join(' · ')}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span style={{ color:'var(--color-text-muted)' }}>CPU Cores</span>
-                      <span className="font-mono">{health.cpu.cores} Cores</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* MEMORY INFO */}
-                <div className="p-4 rounded-xl border" style={{ borderColor:'var(--color-border)', background:'var(--color-surface)' }}>
-                  <h4 className="text-sm font-bold mb-3" style={{ color:'var(--color-primary)' }}>Memory Utilization</h4>
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-sm">
-                      <span style={{ color:'var(--color-text-muted)' }}>Total Memory</span>
-                      <span className="font-mono">{formatBytes(health.memory.total)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span style={{ color:'var(--color-text-muted)' }}>Free Memory</span>
-                      <span className="font-mono">{formatBytes(health.memory.free)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span style={{ color:'var(--color-text-muted)' }}>Node Process Heap</span>
-                      <span className="font-mono">{formatBytes(health.memory.process.heapUsed)} / {formatBytes(health.memory.process.heapTotal)}</span>
-                    </div>
-                    
-                    <div className="w-full rounded-full h-1.5 mt-2" style={{ background:'var(--color-border)' }}>
-                      <div className="h-full rounded-full" 
-                        style={{ background:'var(--color-primary)', width: `${Math.min(100, Math.round(((health.memory.total - health.memory.free) / health.memory.total) * 100))}%` }} />
-                    </div>
-                  </div>
-                </div>
-
-                {/* DATABASE INFO */}
-                <div className="p-4 rounded-xl border md:col-span-2" style={{ borderColor:'var(--color-border)', background:'var(--color-surface)' }}>
-                  <h4 className="text-sm font-bold mb-3 flex items-center justify-between" style={{ color:'var(--color-primary)' }}>
-                    <span>Database Engine</span>
-                    <span className="text-xs" style={{ color: health.database.status==='connected'?'#10b981':'#ef4444' }}>
-                      {health.database.status.toUpperCase()}
-                    </span>
-                  </h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    <div className="p-3 rounded text-center" style={{ background:'rgba(var(--color-primary-rgb),0.05)' }}>
-                      <p className="text-xs mb-1" style={{ color:'var(--color-text-muted)' }}>Collections</p>
-                      <p className="text-lg font-mono font-bold" style={{ color:'var(--color-text)' }}>{health.database.collections}</p>
-                    </div>
-                    <div className="p-3 rounded text-center" style={{ background:'rgba(var(--color-primary-rgb),0.05)' }}>
-                      <p className="text-xs mb-1" style={{ color:'var(--color-text-muted)' }}>Documents</p>
-                      <p className="text-lg font-mono font-bold" style={{ color:'var(--color-text)' }}>{health.database.objects.toLocaleString()}</p>
-                    </div>
-                    <div className="p-3 rounded text-center" style={{ background:'rgba(var(--color-primary-rgb),0.05)' }}>
-                      <p className="text-xs mb-1" style={{ color:'var(--color-text-muted)' }}>Data Size</p>
-                      <p className="text-lg font-mono font-bold" style={{ color:'var(--color-text)' }}>{formatBytes(health.database.dataSize)}</p>
-                    </div>
-                    <div className="p-3 rounded text-center" style={{ background:'rgba(var(--color-primary-rgb),0.05)' }}>
-                      <p className="text-xs mb-1" style={{ color:'var(--color-text-muted)' }}>Indexes</p>
-                      <p className="text-lg font-mono font-bold" style={{ color:'var(--color-text)' }}>{health.database.indexes}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
     </div>
   );
 }

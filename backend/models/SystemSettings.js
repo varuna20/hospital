@@ -72,7 +72,7 @@ const systemSettingsSchema = new mongoose.Schema({
   // ── SMS Gateway ───────────────────────────────────────────────
   sms: {
     enabled:   { type: Boolean, default: false },
-    provider:  { type: String, enum: ['textlk', 'twilio', 'nexmo', 'aws-sns', 'custom'], default: 'textlk' },
+    provider:  { type: String, enum: ['twilio', 'nexmo', 'aws-sns', 'custom'], default: 'twilio' },
     apiKey:    String,
     textLkApiKey: String,  // text.lk Bearer API key
     senderId:  String,   // Sender ID (max 11 chars)
@@ -93,6 +93,14 @@ const systemSettingsSchema = new mongoose.Schema({
     lastBackupStatus: { type: String, enum: ['success', 'failed', 'running'], default: 'success' }
   },
 
+  // ── Keep Alive / Continuous Ping ──────────────────────────────
+  keepAlive: {
+    enabled:        { type: Boolean, default: false },
+    url:            { type: String, default: 'https://hospital-system-t9fq.onrender.com' },
+    lastPing:       Date,
+    lastPingStatus: { type: String, default: 'never' }
+  },
+
   // ── Security ──────────────────────────────────────────────────
   security: {
     maxLoginAttempts:   { type: Number, default: 5 },
@@ -100,21 +108,6 @@ const systemSettingsSchema = new mongoose.Schema({
     sessionHours:       { type: Number, default: 8 },
     requireStrongPassword: { type: Boolean, default: true },
     twoFactorEnabled:   { type: Boolean, default: false }
-  },
-  
-  // ── Branding ──────────────────────────────────────────────────
-  branding: {
-    logo:        String,
-    brandName:   { type: String, default: 'Chevara Labs' },
-    website:     { type: String, default: 'https://chevaralabs.com' },
-    footerText:  { type: String, default: 'Powered by' }
-  },
-
-  // ── Payment Gateway ───────────────────────────────────────────
-  payment: {
-    paypalClientId: { type: String, default: '' },
-    paypalEmail:    { type: String, default: 'varuna.20@gmail.com' },
-    currency:       { type: String, default: 'USD' }
   }
 
 }, { timestamps: true });

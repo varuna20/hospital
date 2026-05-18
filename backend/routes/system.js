@@ -12,55 +12,7 @@ const router  = express.Router();
 const { SystemSettings } = require('../models/SystemSettings');
 const { protect, superAdminOnly } = require('../middleware/auth');
 
-// Public route for branding (logo, name) and public payment info
-router.get('/branding', async (req, res) => {
-  try {
-    const s = await SystemSettings.findOne().select('branding payment');
-    res.json({ success: true, branding: s?.branding || {}, payment: s?.payment || {} });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
-
 router.use(protect, superAdminOnly);
-
-// System Health & Capacity metrics
-router.get('/health', async (req, res) => {
-  try {
-    const os = require('os');
-    const mongoose = require('mongoose');
-    
-    // DB Stats
-    let dbStats = {};
-    if (mongoose.connection.readyState === 1) {
-      dbStats = await mongoose.connection.db.stats();
-    }
-
-    const health = {
-      status: 'online',
-      uptime: process.uptime(),
-      memory: {
-        total: os.totalmem(),
-        free: os.freemem(),
-        process: process.memoryUsage()
-      },
-      cpu: {
-        cores: os.cpus().length,
-        loadavg: os.loadavg() // [1, 5, 15] minute load averages
-      },
-      database: {
-        status: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-        collections: dbStats.collections || 0,
-        objects: dbStats.objects || 0,
-        dataSize: dbStats.dataSize || 0,
-        storageSize: dbStats.storageSize || 0,
-        indexes: dbStats.indexes || 0
-      }
-    };
-    
-    res.json({ success: true, health });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
 
 // Get settings
 router.get('/settings', async (req, res) => {
@@ -86,6 +38,12 @@ router.put('/settings', async (req, res) => {
     if (data.sms?.apiSecret   === '••••••••') delete data.sms.apiSecret;
     Object.assign(s, data);
     await s.save();
+    if (data.keepAlive?.enabled) {
+      try {
+        const { pingServer } = require('../utils/keepAlive');
+        pingServer();
+      } catch(e) { console.warn('KeepAlive run:', e.message); }
+    }
     res.json({ success: true, message: 'Settings saved' });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
@@ -117,36 +75,12 @@ router.post('/sms/test', async (req, res) => {
     const { testPhone } = req.body;
     const s = await SystemSettings.findOne();
     if (!s?.sms?.enabled) return res.status(400).json({ success: false, message: 'SMS not configured' });
-
-    const { sendSms } = require('../utils/sms');
-    const { provider, apiKey, textLkApiKey, apiSecret, senderId } = s.sms;
-
-    let result;
-    if (provider === 'textlk') {
-      const key = (textLkApiKey || apiKey || apiSecret || '').trim();
-      result = await sendSms({
-        to: testPhone,
-        message: 'Test SMS from Hospital eChanneling ✅',
-        apiKey: key,
-        senderId: (senderId || 'HOSPITAL').trim()
-      });
-    } else if (provider === 'twilio') {
-      const twilio = require('twilio');
-      const client = twilio(apiKey, apiSecret);
-      result = await client.messages.create({
-        body: 'Test SMS from Hospital eChanneling ✅',
-        from: senderId,
-        to: testPhone
-      });
-    } else {
-      return res.status(400).json({ success: false, message: `Provider ${provider} test not implemented yet` });
-    }
-
-    res.json({ success: true, message: 'Test SMS sent', result });
-  } catch (err) {
-    console.error('SMS test error:', err);
-    res.status(500).json({ success: false, message: err.message });
-  }
+    // Currently only Twilio supported in MVP
+    const twilio = require('twilio');
+    const client = twilio(s.sms.apiKey, s.sms.apiSecret);
+    await client.messages.create({ body: 'Test SMS from Hospital eChanneling ✅', from: s.sms.senderId, to: testPhone });
+    res.json({ success: true, message: 'Test SMS sent' });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
 // List backup files

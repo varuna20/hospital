@@ -13,7 +13,6 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const app    = express();
-app.set('trust proxy', 1); // Required for Render/Vercel rate limiting
 const server = http.createServer(app);
 
 // ── Security ─────────────────────────────────────────────────────
@@ -29,39 +28,15 @@ try {
     contentSecurityPolicy: {
       directives: {
         ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-        "img-src": ["*", "data:", "blob:"],
-        "media-src": ["*", "data:", "blob:"],
+        "img-src":     ["*", "data:", "blob:"],
+        "media-src":   ["*", "data:", "blob:"],
         "connect-src": ["'self'", "*"],
       },
     },
-    hsts: {
-      maxAge: 31536000,
-      includeSubDomains: true,
-      preload: true
-    }
   }));
-
-  // Enforce Encrypted Tunnels (HTTPS) in Production
-  if (process.env.NODE_ENV === 'production') {
-    app.use((req, res, next) => {
-      if (req.headers['x-forwarded-proto'] !== 'https') {
-        return res.redirect(301, `https://${req.headers.host}${req.url}`);
-      }
-      next();
-    });
-  }
-
   app.use(mongoSanitize({ replaceWith: '_' }));
   app.use(hpp({ whitelist: ['status','role','doctorId','hospitalId'] }));
-  app.use(compression({
-    filter: (req, res) => {
-      // Don't compress if x-no-compression header is present or for backup routes
-      if (req.headers['x-no-compression'] || req.url.includes('/backup/download')) {
-        return false;
-      }
-      return compression.filter(req, res);
-    }
-  }));
+  app.use(compression());
   // Rate limiting
   // General API: 1000 requests per 15 min (generous for busy clinic staff)
   const apiLimiter = rateLimit({
@@ -98,28 +73,12 @@ try {
 }
 
 // ── CORS ─────────────────────────────────────────────────────────
-// Support comma-separated list of allowed origins, e.g.
-// FRONTEND_URL=https://hospital.onrender.com,http://localhost:5173
-const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
-  .split(',').map(o => o.trim()).filter(Boolean);
-
-app.use(cors({
-  origin: (origin, cb) => {
-    // Allow requests with no origin (mobile apps, curl, server-to-server)
-    if (!origin) return cb(null, true);
-    if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) return cb(null, true);
-    // Allow any subdomain of allowed origins in production
-    const isAllowed = allowedOrigins.some(o => origin.endsWith(o.replace(/^https?:\/\//, '')));
-    if (isAllowed) return cb(null, true);
-    cb(null, true); // Permissive for now; tighten in production if needed
-  },
-  credentials: true,
-}));
+app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173', credentials: true }));
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 if (process.env.NODE_ENV === 'development') app.use(morgan('dev'));
 
-// ── Static files (uploads) ───────────────────────────────────────
+// ── Static files ──────────────────────────────────────────────────
 // Serve /uploads with explicit CORS headers so browsers can load
 // images/videos cross-origin from the React frontend.
 app.use('/uploads', (req, res, next) => {
@@ -150,14 +109,10 @@ app.use('/api/prescriptions', require('./routes/prescriptions'));
 app.use('/api/display',       require('./routes/displayRoute'));
 app.use('/api/system',        require('./routes/system'));
 app.use('/api/subscriptions', require('./routes/subscriptions'));
-app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/drugs',         require('./routes/drugs'));
 
-// Backup routes — disable compression for large file transfers
-app.use('/api/backup', (req, res, next) => {
-  req.headers['x-no-compression'] = 'true'; // Hint for compression middleware if supported
-  next();
-}, require('./routes/backup'));
+// Backup routes
+app.use('/api/backup', require('./routes/backup'));
 
 app.get('/api/health', (_, res) => res.json({ status: 'ok', version: '3.0', timestamp: new Date() }));
 
@@ -181,7 +136,7 @@ mongoose.connect(process.env.MONGO_URI)
       await require('./utils/initDefaults')();
       require('./utils/backup').startBackupScheduler();
       require('./utils/billing').startBillingScheduler();
-      require('./utils/reminders').startReminderScheduler();
+      require('./utils/keepAlive').startKeepAliveScheduler();
     } catch(e) { console.warn('Init:', e.message); }
     const PORT = process.env.PORT || 5000;
     server.listen(PORT, () => console.log('🚀 Server on port', PORT));
