@@ -31,6 +31,11 @@ const doctorSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  hospitalIds: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Hospital',
+    index: true
+  }],
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'

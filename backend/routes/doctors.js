@@ -62,10 +62,16 @@ router.get('/', optionalProtect, async (req, res) => {
       hospitalId = hid?._id ? hid._id.toString() : hid?.toString();
     }
 
-    if (hospitalId) query.hospitalId = hospitalId;
+    if (hospitalId) {
+      query.$or = [
+        { hospitalId: hospitalId },
+        { hospitalIds: hospitalId }
+      ];
+    }
 
     const doctors = await Doctor.find(query)
       .populate('hospitalId', 'name logo city')
+      .populate('hospitalIds', 'name logo city')
       .sort({ name: 1 });
 
     res.json({ success: true, doctors });
@@ -77,22 +83,29 @@ router.get('/', optionalProtect, async (req, res) => {
 // ── Create Doctor ─────────────────────────────────────────────────
 router.post('/', protect, authorize('admin', 'superadmin'), async (req, res) => {
   try {
-    const hospitalId = getHospitalId(req);
     const {
       name, email, phone, password, specialization, qualifications,
-      experience, bio, room, language, fees, sessions
+      experience, bio, room, language, fees, sessions, hospitalId, hospitalIds
     } = req.body;
+
+    // Resolve primary hospitalId and the multi-consulting hospitalIds array
+    const resolvedHospitalIds = Array.isArray(hospitalIds) && hospitalIds.length > 0
+      ? hospitalIds
+      : [hospitalId || getHospitalId(req)].filter(Boolean);
+    const primaryHospitalId = resolvedHospitalIds[0];
 
     // Create user account
     const user = await User.create({
       name, email,
       password: password || 'Doctor@123',
-      phone, role: 'doctor', hospitalId
+      phone, role: 'doctor', hospitalId: primaryHospitalId
     });
 
     // Create doctor profile
     const doctor = await Doctor.create({
-      hospitalId, userId: user._id,
+      hospitalId: primaryHospitalId,
+      hospitalIds: resolvedHospitalIds,
+      userId: user._id,
       name, email, phone, specialization,
       qualifications: Array.isArray(qualifications) ? qualifications : (qualifications || '').split(',').map(q => q.trim()).filter(Boolean),
       experience, bio, room, language,
@@ -138,7 +151,7 @@ router.put('/:id', protect, authorize('admin', 'superadmin'), async (req, res) =
   try {
     const {
       name, email, phone, specialization, qualifications,
-      experience, bio, room, language, fees, isActive, sessions, hospitalId
+      experience, bio, room, language, fees, isActive, sessions, hospitalId, hospitalIds
     } = req.body;
 
     const update = {
@@ -147,8 +160,12 @@ router.put('/:id', protect, authorize('admin', 'superadmin'), async (req, res) =
         : (qualifications || '').split(',').map(q => q.trim()).filter(Boolean)
     };
 
-    if (req.user.role === 'superadmin' && hospitalId) {
+    if (Array.isArray(hospitalIds) && hospitalIds.length > 0) {
+      update.hospitalIds = hospitalIds;
+      update.hospitalId = hospitalIds[0];
+    } else if (hospitalId) {
       update.hospitalId = hospitalId;
+      update.hospitalIds = [hospitalId];
     }
 
     if (sessions) update.sessions = sessions;
@@ -183,8 +200,9 @@ router.put('/:id', protect, authorize('admin', 'superadmin'), async (req, res) =
     if (doctor?.userId) {
       const userUpdate = {};
       if (name) userUpdate.name = name;
-      if (req.user.role === 'superadmin' && hospitalId) {
-        userUpdate.hospitalId = hospitalId;
+      const primaryHospId = update.hospitalId || hospitalId;
+      if (primaryHospId) {
+        userUpdate.hospitalId = primaryHospId;
       }
       if (Object.keys(userUpdate).length > 0) {
         await User.findByIdAndUpdate(doctor.userId, userUpdate);

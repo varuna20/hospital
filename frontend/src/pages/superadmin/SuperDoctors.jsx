@@ -109,6 +109,7 @@ function DoctorForm({ doctor: editDoc, hospitals, onSave, onCancel }) {
     room: editDoc?.room || '',
     language: editDoc?.language || '',
     hospitalId: editDoc?.hospitalId?._id || editDoc?.hospitalId || '',
+    hospitalIds: editDoc?.hospitalIds?.map(h => h._id || h) || (editDoc?.hospitalId ? [editDoc.hospitalId?._id || editDoc.hospitalId] : []),
     fees: {
       doctorFee: editDoc?.fees?.doctorFee || 0,
       hospitalCharge: editDoc?.fees?.hospitalCharge || 0
@@ -118,8 +119,13 @@ function DoctorForm({ doctor: editDoc, hospitals, onSave, onCancel }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!form.name || !form.email || !form.hospitalId || !form.specialization) {
-      toast.error('Name, Email, Hospital, and Specialization are required');
+    if (!form.name || !form.email || !form.specialization) {
+      toast.error('Name, Email, and Specialization are required');
+      return;
+    }
+
+    if (!form.hospitalIds || form.hospitalIds.length === 0) {
+      toast.error('Please select at least one consulting hospital');
       return;
     }
 
@@ -175,19 +181,41 @@ function DoctorForm({ doctor: editDoc, hospitals, onSave, onCancel }) {
 
       {activeTab === 'basic' && (
         <div className="grid md:grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="label">Assigned Hospital *</label>
-            <select
-              className="input"
-              value={form.hospitalId}
-              onChange={e => setForm(p => ({ ...p, hospitalId: e.target.value }))}
-              required
-            >
-              <option value="">-- Choose Hospital --</option>
-              {hospitals.map(h => (
-                <option key={h._id} value={h._id}>{h.name} ({h.city})</option>
-              ))}
-            </select>
+          <div className="md:col-span-2">
+            <label className="label">Assigned Consulting Hospitals *</label>
+            <p className="text-xs text-white/50 mb-2">Select all hospitals where this doctor conducts consultations.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+              {hospitals.map(h => {
+                const isChecked = form.hospitalIds.includes(h._id);
+                return (
+                  <label key={h._id} className="flex items-center gap-2.5 p-3 rounded-xl cursor-pointer border transition-all hover:bg-white/5"
+                    style={{
+                      borderColor: isChecked ? 'var(--color-primary)' : 'var(--color-border)',
+                      background: isChecked ? 'rgba(var(--color-primary-rgb),0.06)' : 'var(--color-surface2)'
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      className="rounded accent-primary w-4 h-4 cursor-pointer"
+                      checked={isChecked}
+                      onChange={() => {
+                        let newIds = [...form.hospitalIds];
+                        if (newIds.includes(h._id)) {
+                          newIds = newIds.filter(id => id !== h._id);
+                        } else {
+                          newIds.push(h._id);
+                        }
+                        setForm(p => ({ ...p, hospitalIds: newIds, hospitalId: newIds[0] || '' }));
+                      }}
+                    />
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-white truncate">{h.name}</p>
+                      <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>{h.city}</p>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
           </div>
 
           <div>

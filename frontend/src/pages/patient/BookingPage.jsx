@@ -467,7 +467,18 @@ export default function BookingPage() {
                   <p style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: '40px 0' }}>No doctors found matching your search</p>
                 )}
                 {filteredDoctors.map(d => (
-                  <SelectCard key={d._id} selected={selDoctor?._id === d._id} onClick={() => { setSelDoctor(d); if(!selHospital) setSelHospital(d.hospitalId); }}>
+                  <SelectCard key={d._id} selected={selDoctor?._id === d._id} onClick={() => {
+                    setSelDoctor(d);
+                    const consultingHospitals = d.hospitalIds && d.hospitalIds.length > 0 ? d.hospitalIds : [d.hospitalId].filter(Boolean);
+                    if (consultingHospitals.length === 1) {
+                      setSelHospital(consultingHospitals[0]);
+                    } else {
+                      const isCurrentlyConsulting = selHospital && consultingHospitals.some(ch => (ch._id || ch) === selHospital._id);
+                      if (!isCurrentlyConsulting) {
+                        setSelHospital(null);
+                      }
+                    }
+                  }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                       <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 900, color: '#02040a', flexShrink: 0 }}>
                         {d.name.replace('Dr. ','').charAt(0)}
@@ -475,7 +486,9 @@ export default function BookingPage() {
                       <div style={{ flex: 1 }}>
                         <p style={{ color: 'white', fontWeight: 600, fontSize: 15 }}>{d.name}</p>
                         <p style={{ color: 'var(--color-primary)', fontSize: 13 }}>{d.specialization}</p>
-                        <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11 }}>{!selHospital && d.hospitalId?.name ? `🏥 ${d.hospitalId.name}` : d.qualifications?.join(', ')}</p>
+                        <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11 }}>
+                          {!selHospital ? (d.hospitalIds && d.hospitalIds.length > 0 ? `🏥 ${d.hospitalIds.map(h => h.name).join(', ')}` : d.hospitalId?.name ? `🏥 ${d.hospitalId.name}` : '') : d.qualifications?.join(', ')}
+                        </p>
                       </div>
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
                         <p style={{ color: 'white', fontWeight: 700, fontSize: 16 }}>{sym} {(d.fees?.totalFee || (d.fees?.doctorFee||0) + (d.fees?.hospitalCharge||0)).toLocaleString()}</p>
@@ -485,6 +498,38 @@ export default function BookingPage() {
                   </SelectCard>
                 ))}
               </div>
+
+              {selDoctor && (
+                (() => {
+                  const consultingHospitals = selDoctor.hospitalIds && selDoctor.hospitalIds.length > 0
+                    ? selDoctor.hospitalIds
+                    : [selDoctor.hospitalId].filter(Boolean);
+
+                  if (consultingHospitals.length > 1) {
+                    return (
+                      <div className="mt-4 p-4 rounded-xl border border-white/10 bg-white/5 space-y-3 mb-5">
+                        <p className="text-sm font-bold text-white">Select Consultation Hospital *</p>
+                        <p className="text-xs text-white/50">Dr. {selDoctor.name} conducts consultations at multiple hospitals. Please choose where you'd like to book:</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {consultingHospitals.map(h => (
+                            <SelectCard key={h._id} selected={selHospital?._id === h._id} onClick={() => setSelHospital(h)}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <span className="text-lg">🏥</span>
+                                <div className="text-left">
+                                  <p style={{ color: 'white', fontWeight: 600, fontSize: 13 }}>{h.name}</p>
+                                  <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>{h.city}</p>
+                                </div>
+                              </div>
+                            </SelectCard>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()
+              )}
+
               <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between' }}>
                 {!isIsolated ? (
                   <button onClick={() => setStep(0)}
@@ -492,8 +537,8 @@ export default function BookingPage() {
                     ← Back
                   </button>
                 ) : <div />}
-                <button disabled={!selDoctor} onClick={() => { setStep(2); setSearchQuery(''); }}
-                  style={{ background: selDoctor ? 'linear-gradient(135deg, var(--color-primary), #00a8d4)' : 'rgba(255,255,255,0.06)', color: selDoctor ? '#02040a' : 'rgba(255,255,255,0.3)', border: 'none', borderRadius: 12, padding: '12px 28px', fontFamily: 'Sora,sans-serif', fontWeight: 700, fontSize: 15, cursor: selDoctor ? 'pointer' : 'not-allowed' }}>
+                <button disabled={!selDoctor || !selHospital} onClick={() => { setStep(2); setSearchQuery(''); }}
+                  style={{ background: (selDoctor && selHospital) ? 'linear-gradient(135deg, var(--color-primary), #00a8d4)' : 'rgba(255,255,255,0.06)', color: (selDoctor && selHospital) ? '#02040a' : 'rgba(255,255,255,0.3)', border: 'none', borderRadius: 12, padding: '12px 28px', fontFamily: 'Sora,sans-serif', fontWeight: 700, fontSize: 15, cursor: (selDoctor && selHospital) ? 'pointer' : 'not-allowed' }}>
                   Next: Pick Session →
                 </button>
               </div>
