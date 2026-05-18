@@ -398,7 +398,24 @@ aptRouter.get('/patient-history', protect, async (req, res) => {
   try {
     if (req.user.role !== 'patient') return res.status(403).json({ success: false, message: 'Patients only' });
     
-    const appointments = await Appointment.find({ patient: req.user._id })
+    const familyPhones = [req.user.phone];
+    if (Array.isArray(req.user.familyMembers)) {
+      for (const m of req.user.familyMembers) {
+        if (m.phone) familyPhones.push(m.phone);
+      }
+    }
+
+    const patients = await Patient.find({
+      $or: [
+        { _id: req.user._id },
+        { phone: { $in: familyPhones.filter(Boolean) } }
+      ]
+    });
+
+    const patientIds = patients.map(p => p._id);
+
+    const appointments = await Appointment.find({ patient: { $in: patientIds } })
+      .populate('patient', 'name phone email')
       .populate('doctor', 'name specialization')
       .sort({ appointmentDate: -1 });
       

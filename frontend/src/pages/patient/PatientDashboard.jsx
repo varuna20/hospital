@@ -340,17 +340,36 @@ export default function PatientDashboard() {
                 <h2 className="text-lg font-bold mb-4">My Visit History</h2>
                 {history.length === 0 ? <p className="text-[var(--color-text-muted)]">No previous visits found.</p> : (
                   <div className="space-y-4">
-                    {history.map(h => (
-                      <div key={h._id} className="p-4 bg-[var(--color-surface2)] rounded-lg border border-[var(--color-border)] flex justify-between items-center">
-                        <div>
-                          <p className="font-bold text-[var(--color-primary)]">{fDate(h.appointmentDate)}</p>
-                          <p className="text-sm">Dr. {h.doctor?.name}</p>
+                    {history.map(h => {
+                      const patientName = h.patient?.name || 'Myself';
+                      const isFamily = patientName.trim().toLowerCase() !== user?.name?.trim().toLowerCase();
+                      
+                      return (
+                        <div key={h._id} className="p-4 bg-[var(--color-surface2)] rounded-lg border border-[var(--color-border)] flex justify-between items-center">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="font-bold text-[var(--color-primary)]">{fDate(h.appointmentDate)}</p>
+                              {isFamily ? (
+                                <span className="px-2 py-0.5 rounded bg-[var(--color-primary)]/10 text-[9px] text-[var(--color-primary)] font-bold uppercase tracking-wider">
+                                  👥 {patientName}
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded bg-white/5 text-[9px] text-white/50 font-bold uppercase tracking-wider">
+                                  👤 Myself
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-white/80">Dr. {h.doctor?.name} <span className="text-white/40 text-xs">({h.doctor?.specialization})</span></p>
+                            {h.queueNumber && (
+                              <p className="text-xs text-[var(--color-text-muted)] mt-1">Ticket: #{h.queueNumber}</p>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <span className="px-2 py-1 rounded bg-black/30 text-xs text-[var(--color-text-muted)] uppercase">{h.status}</span>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <span className="px-2 py-1 rounded bg-black/30 text-xs text-[var(--color-text-muted)] uppercase">{h.status}</span>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
