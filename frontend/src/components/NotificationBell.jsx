@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
 import { useSocket } from '../context/SocketContext';
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 
 export default function NotificationBell() {
   const { user, hospital } = useAuth();
   const { socket } = useSocket();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
 
@@ -42,6 +44,54 @@ export default function NotificationBell() {
     } catch {}
   };
 
+  const handleNotificationClick = async (n) => {
+    setIsOpen(false);
+    
+    // Mark as read in backend
+    try {
+      await api.put(`/notifications/${n._id}/read`);
+      setNotifications(prev => prev.map(item => item._id === n._id ? { ...item, isRead: true } : item));
+    } catch {}
+
+    // Smart Routing Logic based on notification title, link, or type!
+    if (n.link) {
+      navigate(n.link);
+      return;
+    }
+
+    const t = (n.title || '').toLowerCase();
+    const m = (n.message || '').toLowerCase();
+    
+    if (n.type === 'doctor_request' || t.includes('reschedule') || m.includes('reschedule') || t.includes('vacation') || m.includes('vacation')) {
+      if (user.role === 'admin' || user.role === 'staff') {
+        navigate('/staff/queue?requests=true');
+      } else if (user.role === 'doctor') {
+        navigate('/doctor/calendar');
+      }
+    } else if (n.type === 'booking' || t.includes('booking') || t.includes('appointment')) {
+      if (user.role === 'admin' || user.role === 'staff') {
+        navigate('/staff/queue');
+      } else if (user.role === 'doctor') {
+        navigate('/doctor/calendar');
+      } else if (user.role === 'patient') {
+        navigate('/patient-dashboard');
+      }
+    } else if (t.includes('refund')) {
+      if (user.role === 'admin' || user.role === 'staff') {
+        navigate('/staff/refund');
+      } else if (user.role === 'doctor') {
+        navigate('/doctor');
+      }
+    }
+  };
+
+  const clearAllNotifications = async () => {
+    try {
+      await api.delete('/notifications/clear-all');
+      setNotifications([]);
+    } catch {}
+  };
+
   return (
     <div className="relative">
       <button 
@@ -72,7 +122,11 @@ export default function NotificationBell() {
                 <div className="p-10 text-center text-white/30 text-sm">No notifications yet</div>
               ) : (
                 notifications.map(n => (
-                  <div key={n._id} className={`p-4 border-b border-white/5 hover:bg-white/[0.02] transition-colors ${!n.isRead ? 'bg-primary/5' : ''}`}>
+                  <div 
+                    key={n._id} 
+                    onClick={() => handleNotificationClick(n)}
+                    className={`p-4 border-b border-white/5 hover:bg-white/[0.04] cursor-pointer transition-all duration-200 ${!n.isRead ? 'bg-primary/5 border-l-2 border-l-primary' : ''}`}
+                  >
                     <p className="text-xs font-bold text-white mb-0.5">{n.title}</p>
                     <p className="text-[11px] text-white/60 leading-relaxed">{n.message}</p>
                     <p className="text-[9px] text-white/30 mt-2">{moment(n.createdAt).fromNow()}</p>
@@ -83,7 +137,7 @@ export default function NotificationBell() {
             
             {notifications.length > 0 && (
               <div className="p-3 bg-white/[0.02] text-center border-t border-white/5">
-                <button className="text-[10px] font-bold text-white/40 hover:text-white uppercase tracking-widest">Clear History</button>
+                <button onClick={clearAllNotifications} className="text-[10px] font-bold text-white/40 hover:text-white uppercase tracking-widest cursor-pointer">Clear History</button>
               </div>
             )}
           </div>

@@ -442,8 +442,14 @@ export default function StaffQueue() {
   const [refundApt, setRefundApt] = useState(null);
   const [messageApt, setMessageApt] = useState(null);
   const [showBulk, setShowBulk] = useState(false);
-  const [showRequests, setShowRequests] = useState(false);
+  const [showRequests, setShowRequests] = useState(params.get('requests') === 'true');
   const sym = hospital?.payment?.currencySymbol || 'Rs.';
+
+  useEffect(() => {
+    if (params.get('requests') === 'true') {
+      setShowRequests(true);
+    }
+  }, [params]);
 
   // Load doctors
   useEffect(() => {
