@@ -27,6 +27,55 @@ router.get('/settings', async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
+// Live System Health & Utilization Stats
+router.get('/health-stats', async (req, res) => {
+  try {
+    const os = require('os');
+    const mongoose = require('mongoose');
+
+    // 1. Memory Usage
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const usedMem = totalMem - freeMem;
+    const memPercent = ((usedMem / totalMem) * 100).toFixed(1);
+
+    // 2. CPU Load & Cores
+    const cores = os.cpus().length;
+    const loadAvg = os.loadavg()[0];
+
+    // 3. Uptime formatting
+    const uptimeSec = os.uptime();
+    const d = Math.floor(uptimeSec / (3600*24));
+    const h = Math.floor((uptimeSec % (3600*24)) / 3600);
+    const m = Math.floor((uptimeSec % 3600) / 60);
+    const uptimeStr = `${d}d ${h}h ${m}m`;
+
+    // 4. WebSocket Active Connections
+    const io = req.app.get('io');
+    const activeSockets = io ? io.engine.clientsCount : 0;
+
+    res.json({
+      success: true,
+      utilization: {
+        memory: {
+          used: (usedMem / 1024 / 1024).toFixed(0),
+          total: (totalMem / 1024 / 1024).toFixed(0),
+          percent: memPercent
+        },
+        cpu: {
+          load: loadAvg.toFixed(2),
+          cores: cores
+        },
+        uptime: uptimeStr,
+        activeSockets: activeSockets,
+        dbStatus: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // Update settings
 router.put('/settings', async (req, res) => {
   try {

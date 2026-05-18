@@ -72,7 +72,7 @@ const systemSettingsSchema = new mongoose.Schema({
   // ── SMS Gateway ───────────────────────────────────────────────
   sms: {
     enabled:   { type: Boolean, default: false },
-    provider:  { type: String, enum: ['twilio', 'nexmo', 'aws-sns', 'custom'], default: 'twilio' },
+    provider:  { type: String, enum: ['twilio', 'nexmo', 'aws-sns', 'custom', 'textlk'], default: 'twilio' },
     apiKey:    String,
     textLkApiKey: String,  // text.lk Bearer API key
     senderId:  String,   // Sender ID (max 11 chars)

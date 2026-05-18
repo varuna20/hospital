@@ -31,6 +31,7 @@ function Toggle({ value, onChange, label, desc }) {
 export default function SuperSystem() {
   const [settings, setSettings] = useState(null);
   const [stats, setStats] = useState(null);
+  const [utilization, setUtilization] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testEmail, setTestEmail] = useState('');
@@ -45,20 +46,39 @@ export default function SuperSystem() {
     Promise.all([
       api.get('/system/settings'),
       api.get('/backup/list').catch(()=>({ data:{ backups:[] } })),
-      api.get('/superadmin/stats').catch(()=>({ data:{ stats: null } }))
-    ]).then(([s, b, st]) => {
+      api.get('/superadmin/stats').catch(()=>({ data:{ stats: null } })),
+      api.get('/system/health-stats').catch(()=>({ data:{ utilization: null } }))
+    ]).then(([s, b, st, ut]) => {
       setSettings(s.data.settings);
       setBackups(b.data.backups || []);
       setStats(st.data.stats || null);
+      setUtilization(ut.data.utilization || null);
     }).catch(()=>{}).finally(()=>setLoading(false));
   };
 
   useEffect(()=>{ loadAll(); },[]);
 
+  useEffect(() => {
+    if (activeTab !== 'health') return;
+    const interval = setInterval(() => {
+      api.get('/system/health-stats')
+        .then(r => setUtilization(r.data.utilization))
+        .catch(() => {});
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [activeTab]);
+
   const save = async () => {
     setSaving(true);
-    try { await api.put('/system/settings', settings); toast.success('Settings saved!'); }
-    catch { toast.error('Failed to save'); } finally { setSaving(false); }
+    try { 
+      const { data } = await api.put('/system/settings', settings); 
+      toast.success(data.message || 'Settings saved successfully!'); 
+    }
+    catch (e) { 
+      toast.error(e.response?.data?.message || 'Failed to save settings'); 
+    } finally { 
+      setSaving(false); 
+    }
   };
 
   const upd = (path, val) => {
@@ -401,13 +421,91 @@ export default function SuperSystem() {
             </button>
           </div>
 
+          {/* Live Utilization Card */}
+          <div className="card animate-fadeIn">
+            <h3 className="section-title mb-2">⚡ Live Server Utilization & Resource Metrics</h3>
+            <p className="text-xs mb-4" style={{ color: 'var(--color-text-muted)' }}>
+              Real-time hardware resource consumption and system workload. Updated automatically every 10 seconds.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Memory Card */}
+              <div className="p-4 rounded-xl space-y-2 border" style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface2)' }}>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-semibold text-white">💾 RAM Memory Usage</span>
+                  <span className="font-mono text-indigo-400 font-bold">
+                    {utilization?.memory ? `${utilization.memory.percent}%` : 'Calculating…'}
+                  </span>
+                </div>
+                <div className="w-full rounded-full h-2" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                  <div 
+                    className="h-2 rounded-full transition-all duration-500" 
+                    style={{ 
+                      width: utilization?.memory ? `${utilization.memory.percent}%` : '0%',
+                      background: 'var(--color-primary)'
+                    }}
+                  />
+                </div>
+                <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                  {utilization?.memory ? `Using ${utilization.memory.used} MB of ${utilization.memory.total} MB total container RAM` : 'Querying free space…'}
+                </p>
+              </div>
+
+              {/* CPU load */}
+              <div className="p-4 rounded-xl space-y-2 border" style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface2)' }}>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-semibold text-white">⚙️ CPU Load Average</span>
+                  <span className="font-mono text-teal-400 font-bold">
+                    {utilization?.cpu ? `${utilization.cpu.load}` : 'Measuring…'}
+                  </span>
+                </div>
+                <div className="w-full rounded-full h-2" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                  <div 
+                    className="h-2 rounded-full transition-all duration-500" 
+                    style={{ 
+                      width: utilization?.cpu ? `${Math.min((utilization.cpu.load / Math.max(utilization.cpu.cores, 1)) * 100, 100)}%` : '0%',
+                      background: '#0d9488'
+                    }}
+                  />
+                </div>
+                <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                  {utilization?.cpu ? `Current OS load average across ${utilization.cpu.cores} CPU Cores` : 'Calculating CPU tasks…'}
+                </p>
+              </div>
+
+              {/* WebSocket and Socket Clients */}
+              <div className="p-4 rounded-xl flex items-center gap-3 border" style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface2)' }}>
+                <div className="text-3xl">🔌</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-xs font-semibold">Active WebSockets</p>
+                  <p className="text-lg font-bold font-mono text-emerald-400">
+                    {utilization?.activeSockets !== undefined ? `${utilization.activeSockets} Live Clients` : 'Calculating…'}
+                  </p>
+                  <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Real-time active connected doctors, staff and displays</p>
+                </div>
+              </div>
+
+              {/* Uptime */}
+              <div className="p-4 rounded-xl flex items-center gap-3 border" style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface2)' }}>
+                <div className="text-3xl">⏱️</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-xs font-semibold">Server Uptime</p>
+                  <p className="text-lg font-bold font-mono text-amber-400">
+                    {utilization?.uptime ? utilization.uptime : 'Calculating…'}
+                  </p>
+                  <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Continuous time since last deployment restart</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* System Health View */}
           <div className="card">
             <h3 className="section-title mb-4">🖥️ Core Engine Status</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {[
                 { label: 'API Server', desc: 'Main Express web application gateway', status: 'Online', ok: true },
-                { label: 'Database', desc: 'MongoDB primary replica connection', status: 'Connected', ok: true },
+                { label: 'Database Connection', desc: 'MongoDB primary connection status', status: utilization?.dbStatus || 'Connected', ok: utilization?.dbStatus === 'Connected' || !utilization },
                 { label: 'Socket.IO Engine', desc: 'WebSocket push notification link', status: 'Active (Instant)', ok: true },
                 { label: 'Automated Reminders', desc: 'Follow-ups and session summaries scheduler', status: 'Running', ok: true },
               ].map(item => (
@@ -416,8 +514,8 @@ export default function SuperSystem() {
                     <h4 className="text-white text-sm font-semibold">{item.label}</h4>
                     <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>{item.desc}</p>
                   </div>
-                  <div className="flex items-center gap-2 mt-3 text-xs font-semibold" style={{ color: '#10b981' }}>
-                    <span className="w-2.5 h-2.5 rounded-full animate-pulse" style={{ background: '#10b981' }} />
+                  <div className="flex items-center gap-2 mt-3 text-xs font-semibold" style={{ color: item.ok ? '#10b981' : '#f59e0b' }}>
+                    <span className="w-2.5 h-2.5 rounded-full animate-pulse" style={{ background: item.ok ? '#10b981' : '#f59e0b' }} />
                     {item.status}
                   </div>
                 </div>
