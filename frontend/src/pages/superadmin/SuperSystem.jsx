@@ -8,7 +8,7 @@
  *  - Security overview
  */
 import React, { useState, useEffect } from 'react';
-import api from '../../utils/api';
+import api, { base } from '../../utils/api';
 import toast from 'react-hot-toast';
 import { fDate } from '../../utils/helpers';
 
@@ -400,7 +400,7 @@ export default function SuperSystem() {
                       </p>
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
-                      <a href={'/api/backup/download/'+b.filename} download
+                      <a href={`${base ? (base.endsWith('/api') ? base : base + '/api') : '/api'}/backup/download/${b.filename}?token=${localStorage.getItem('token')}`} download
                         className="text-xs px-3 py-1.5 rounded-xl transition-all"
                         style={{ background:'rgba(var(--color-primary-rgb),0.1)',color:'var(--color-primary)' }}>
                         ⬇ Download
