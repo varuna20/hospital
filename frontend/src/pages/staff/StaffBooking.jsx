@@ -296,7 +296,7 @@ export default function StaffBooking() {
                   const dayCounts = calendarCounts.filter(c => c._id.date === dStr);
                   const totalBooked = dayCounts.reduce((sum, c) => sum + (c.count || 0), 0);
                   const dayOfWeek = d.day();
-                  const daySessions = (doc?.sessions || []).filter(s => s.dayOfWeek === dayOfWeek && s.isActive);
+                  const daySessions = (selDoctor?.sessions || []).filter(s => s.dayOfWeek === dayOfWeek && s.isActive);
                   const maxDayCapacity = daySessions.reduce((sum, s) => sum + (s.maxPatients || 0), 0);
 
                   return (
