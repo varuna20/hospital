@@ -293,18 +293,28 @@ export default function StaffBooking() {
                     if (isSelected) { bgColor = 'rgba(239,68,68,0.2)'; borderColor = '#ef4444'; }
                   }
 
+                  const dayCounts = calendarCounts.filter(c => c._id.date === dStr);
+                  const totalBooked = dayCounts.reduce((sum, c) => sum + (c.count || 0), 0);
+                  const dayOfWeek = d.day();
+                  const daySessions = (doc?.sessions || []).filter(s => s.dayOfWeek === dayOfWeek && s.isActive);
+                  const maxDayCapacity = daySessions.reduce((sum, s) => sum + (s.maxPatients || 0), 0);
+
                   return (
                     <button key={dStr} type="button" onClick={() => setForm(f => ({ ...f, appointmentDate: dStr }))}
                       style={{
                         aspectRatio: '1/1', borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                        background: isToday && !isSelected ? 'rgba(255,255,255,0.1)' : bgColor, border: `1.5px solid ${borderColor}`, cursor: 'pointer', transition: 'all 0.2s', position: 'relative', gap: 4
+                        background: isToday && !isSelected ? 'rgba(255,255,255,0.1)' : bgColor, border: `1.5px solid ${borderColor}`, cursor: 'pointer', transition: 'all 0.2s', position: 'relative', gap: 2
                       }}>
                       <span style={{ fontSize: 13, fontWeight: 700, color: isSelected || isToday ? 'white' : 'rgba(255,255,255,0.7)' }}>{d.format('D')}</span>
-                      {isToday && <span style={{ fontSize: 8, fontWeight: 700, color: 'var(--color-primary)', marginTop: -4 }}>TDY</span>}
+                      {maxDayCapacity > 0 && (
+                        <span style={{ fontSize: 9, fontWeight: 600, color: isSelected || isToday ? 'white' : 'var(--color-text-muted)' }}>
+                          {totalBooked}/{maxDayCapacity}
+                        </span>
+                      )}
                       <div style={{ 
                         width: 6, height: 6, borderRadius: '50%', background: dotColor,
                         boxShadow: dotColor !== 'transparent' ? `0 0 8px ${dotColor}` : 'none',
-                        marginTop: isToday ? 0 : 2
+                        marginTop: 2
                       }}></div>
                       {isSelected && <div style={{ position: 'absolute', top: -4, right: -4, width: 14, height: 14, background: 'var(--color-primary)', borderRadius: '50%', border: '2px solid var(--color-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, color: 'black' }}>✓</div>}
                     </button>
@@ -353,14 +363,31 @@ export default function StaffBooking() {
                     return (
                       <button key={s._id || i} type="button" 
                         onClick={() => setForm(f => ({ ...f, sessionId: sid, sessionLabel: s.label || s.sessionName }))}
-                        className="px-3 py-2 rounded-xl text-xs font-medium border transition-all text-center"
+                        className="px-3 py-2 rounded-xl text-xs font-medium border transition-all text-center flex flex-col items-center justify-center"
                         style={{ 
                           background: isSelected ? 'var(--color-primary)' : 'var(--color-surface2)',
                           borderColor: isSelected ? 'var(--color-primary)' : 'var(--color-border)',
                           color: isSelected ? 'black' : 'white'
                         }}>
-                        {s.label || s.sessionName}<br/>
-                        <span className="opacity-60">{s.startTime}</span>
+                        <span className="font-bold">{s.label || s.sessionName}</span>
+                        <span className="opacity-60 text-[10px] mt-0.5">{s.startTime}</span>
+                        
+                        {(() => {
+                          const bDate = moment(form.appointmentDate).format('YYYY-MM-DD');
+                          const dayCounts = calendarCounts.filter(c => c._id.date === bDate);
+                          const countObj = dayCounts.find(c => c._id.sessionId === sid);
+                          const currentCount = countObj?.count || 0;
+                          const maxCount = s.maxPatients || 0;
+                          return maxCount > 0 ? (
+                            <div className="mt-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold" 
+                              style={{
+                                background: isSelected ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.05)',
+                                color: currentCount >= maxCount ? (isSelected ? '#ef4444' : '#f87171') : (isSelected ? 'black' : 'var(--color-primary)')
+                              }}>
+                              {currentCount} / {maxCount} Booked
+                            </div>
+                          ) : null;
+                        })()}
                       </button>
                     );
                   })}

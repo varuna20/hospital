@@ -120,8 +120,8 @@ router.post('/restore/:filename', async (req, res) => {
         global.backupProgress.step     = `Restoring collection: ${colName}…`;
         global.backupProgress.progress = pct;
 
-        const col = mongoose.connection.db.collection(colName);
-        await col.deleteMany({});
+        // Removed deleteMany to prevent removing existing data while restoring
+        // await col.deleteMany({});
 
         // Stream NDJSON line-by-line, insert in 100-doc batches
         const stream = entry.stream();
@@ -136,13 +136,19 @@ router.post('/restore/:filename', async (req, res) => {
           } catch (_) { continue; }
 
           if (batch.length >= 100) {
-            await col.insertMany(batch, { ordered: false }).catch(() => {});
+            const ops = batch.map(doc => ({
+              replaceOne: { filter: { _id: doc._id }, replacement: doc, upsert: true }
+            }));
+            await col.bulkWrite(ops, { ordered: false }).catch(() => {});
             totalDocs += batch.length;
             batch = [];
           }
         }
         if (batch.length > 0) {
-          await col.insertMany(batch, { ordered: false }).catch(() => {});
+          const ops = batch.map(doc => ({
+            replaceOne: { filter: { _id: doc._id }, replacement: doc, upsert: true }
+          }));
+          await col.bulkWrite(ops, { ordered: false }).catch(() => {});
           totalDocs += batch.length;
         }
 
@@ -193,8 +199,12 @@ router.post('/restore/:filename', async (req, res) => {
         if (['system.indexes','system.users'].includes(colName)) continue;
         const col = mongoose.connection.db.collection(colName);
         if (docs.length > 0) {
-          await col.deleteMany({});
-          await col.insertMany(docs, { ordered: false }).catch(() => {});
+          // Removed deleteMany to prevent removing existing data while restoring
+          // await col.deleteMany({});
+          const ops = docs.map(doc => ({
+            replaceOne: { filter: { _id: doc._id }, replacement: doc, upsert: true }
+          }));
+          await col.bulkWrite(ops, { ordered: false }).catch(() => {});
           restored += docs.length;
         }
       }
