@@ -60,10 +60,95 @@ export default function QueueStatus() {
   const isDone = status.status === 'completed';
   const isMyTurn = !isFuture && status.peopleAhead === 0 && !isDone;
 
+  const handleAddToCalendar = () => {
+    if (!status) return;
+
+    const apptDateObj = new Date(status.appointmentDate);
+    let startHour = 9, startMin = 0;
+    let endHour = 10, endMin = 0;
+
+    if (status.sessionTime) {
+      const parts = status.sessionTime.split('-');
+      const startPart = parts[0]?.trim();
+      const endPart = parts[1]?.trim();
+
+      if (startPart && startPart.includes(':')) {
+        const [sh, sm] = startPart.split(':').map(Number);
+        if (!isNaN(sh)) { startHour = sh; startMin = sm || 0; }
+      }
+      if (endPart && endPart.includes(':')) {
+        const [eh, em] = endPart.split(':').map(Number);
+        if (!isNaN(eh)) { endHour = eh; endMin = em || 0; }
+      } else {
+        endHour = startHour + 1;
+        endMin = startMin;
+      }
+    }
+
+    const startDate = new Date(apptDateObj);
+    startDate.setHours(startHour, startMin, 0);
+    const endDate = new Date(apptDateObj);
+    endDate.setHours(endHour, endMin, 0);
+
+    const formatDate = (date) => {
+      const pad = (n) => String(n).padStart(2, '0');
+      return date.getUTCFullYear() +
+        pad(date.getUTCMonth() + 1) +
+        pad(date.getUTCDate()) + 'T' +
+        pad(date.getUTCHours()) +
+        pad(date.getUTCMinutes()) +
+        pad(date.getUTCSeconds()) + 'Z';
+    };
+
+    const dtStart = formatDate(startDate);
+    const dtEnd = formatDate(endDate);
+    const nowStr = formatDate(new Date());
+
+    const summary = `Appointment with Dr. ${status.doctor}`;
+    const description = `Appointment with Dr. ${status.doctor} at ${status.hospitalName}. Queue Number: #${status.queueNumber}. Room: ${status.room || 'TBD'}. Session: ${status.sessionLabel || 'General'}.`;
+    const location = `${status.room || 'TBD'}, ${status.hospitalName}`;
+
+    const icsContent = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Hospital System//EN',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'BEGIN:VEVENT',
+      `UID:${status.queueNumber}-${dtStart}-${status.doctor.replace(/\s+/g, '')}@hospitalsystem.com`,
+      `DTSTAMP:${nowStr}`,
+      `DTSTART:${dtStart}`,
+      `DTEND:${dtEnd}`,
+      `SUMMARY:${summary}`,
+      `DESCRIPTION:${description}`,
+      `LOCATION:${location}`,
+      'BEGIN:VALARM',
+      'TRIGGER:-PT1H',
+      'ACTION:DISPLAY',
+      'DESCRIPTION:Reminder',
+      'END:VALARM',
+      'END:VEVENT',
+      'END:VCALENDAR'
+    ].join('\r\n');
+
+    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `appointment-dr-${status.doctor.toLowerCase().replace(/[^a-z0-9]/g, '-')}.ics`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: 'var(--color-bg)' }}>
       <div className="w-full max-w-sm">
         <div className="text-center mb-6">
+          {status.hospitalName && (
+            <p className="text-xs uppercase font-black tracking-widest mb-1.5" style={{ color: 'var(--color-primary)' }}>
+              {status.hospitalName}
+            </p>
+          )}
           <h1 className="text-xl font-bold text-white mb-1" style={{ fontFamily: 'Sora,sans-serif' }}>Your Queue Status</h1>
           <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Dr. {status.doctor} · {status.room}</p>
         </div>
@@ -111,6 +196,29 @@ export default function QueueStatus() {
             </div>
           )}
         </div>
+
+        {isFuture && (
+          <button
+            onClick={handleAddToCalendar}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold border transition-all mb-4"
+            style={{
+              background: 'rgba(99,102,241,0.1)',
+              borderColor: 'rgba(99,102,241,0.3)',
+              color: '#818cf8',
+              fontFamily: 'Sora,sans-serif'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(99,102,241,0.2)';
+              e.currentTarget.style.borderColor = '#818cf8';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(99,102,241,0.1)';
+              e.currentTarget.style.borderColor = 'rgba(99,102,241,0.3)';
+            }}
+          >
+            📅 Add to Calendar (1h Reminder)
+          </button>
+        )}
 
         {!isFuture && !isDone && status.isArrived === false && (
           <div className="card text-center mb-4 border-dashed border-2" style={{ borderColor: 'var(--color-border)' }}>

@@ -374,7 +374,9 @@ aptRouter.put('/:id/status', protect, authorize('staff', 'admin', 'doctor', 'sup
 aptRouter.get('/guest/:token', async (req, res) => {
   try {
     const apt = await Appointment.findOne({ guestToken: req.params.token })
-      .populate('patient', 'name').populate('doctor', 'name specialization room avgConsultMinutes todayStatus sessions');
+      .populate('patient', 'name')
+      .populate('doctor', 'name specialization room avgConsultMinutes todayStatus sessions')
+      .populate('hospitalId', 'name shortName');
     if (!apt) return res.status(404).json({ success: false, message: 'Not found' });
     const today = moment().startOf('day').toDate();
     const queue = await Queue.findOne({ doctor: apt.doctor._id, date: today });
@@ -408,7 +410,8 @@ aptRouter.get('/guest/:token', async (req, res) => {
       room: apt.doctor.room,
       appointmentDate: apt.appointmentDate,
       sessionLabel: apt.sessionLabel,
-      sessionTime
+      sessionTime,
+      hospitalName: apt.hospitalId?.shortName || apt.hospitalId?.name || 'Hospital'
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
