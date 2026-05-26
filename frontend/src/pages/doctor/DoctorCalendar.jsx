@@ -44,7 +44,12 @@ export default function DoctorCalendar() {
 
     return activeSessions.map(session => {
       const sessHospId = session.hospitalId?._id || session.hospitalId;
-      const matchCount = dayCounts.find(c => c._id.hospitalId?.toString() === sessHospId?.toString());
+      const matchCount = dayCounts.find(c => {
+        // Match by hospitalId OR matching sessionLabel if multiple sessions exist
+        const isSameHosp = c.hospitalId?.toString() === sessHospId?.toString();
+        const isSameSession = c.label === (session.sessionName || 'Session');
+        return isSameHosp && isSameSession;
+      });
       
       const resolvedHosp = matchCount?.hospital || 
                            (typeof session.hospitalId === 'object' && session.hospitalId !== null && session.hospitalId.name ? session.hospitalId : null) ||
