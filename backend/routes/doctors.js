@@ -714,22 +714,34 @@ router.get('/:id/calendar-counts', async (req, res) => {
     const start = moment().startOf('day').toDate();
     const end   = moment().add(30, 'days').endOf('day').toDate();
 
-    const counts = await Appointment.aggregate([
-      { $match: { doctor: require('mongoose').Types.ObjectId.createFromHexString(req.params.id), appointmentDate: { $gte: start, $lte: end }, status: 'booked' } },
-      { $group: { 
-        _id: { date: { $dateToString: { format: "%Y-%m-%d", date: "$appointmentDate" } }, sessionId: "$sessionId" }, 
-        count: { $sum: 1 },
-        label: { $first: "$sessionLabel" },
-        hospitalId: { $first: "$hospitalId" }
-      } },
-      { $lookup: {
-        from: 'hospitals',
-        localField: 'hospitalId',
-        foreignField: '_id',
-        as: 'hospital'
-      } },
-      { $unwind: { path: '$hospital', preserveNullAndEmptyArrays: true } }
-    ]);
+    const appointments = await Appointment.find({
+      doctor: req.params.id,
+      appointmentDate: { $gte: start, $lte: end },
+      status: 'booked'
+    });
+
+    const countsMap = {};
+    appointments.forEach(apt => {
+      const dateStr = moment(apt.appointmentDate).format('YYYY-MM-DD');
+      const key = `${dateStr}_${apt.sessionId}`;
+      if (!countsMap[key]) {
+        countsMap[key] = {
+          _id: { date: dateStr, sessionId: apt.sessionId },
+          count: 0,
+          label: apt.sessionLabel,
+          hospitalId: apt.hospitalId
+        };
+      }
+      countsMap[key].count++;
+    });
+
+    let counts = Object.values(countsMap);
+    const Hospital = require('../models/Hospital');
+    for (let c of counts) {
+      if (c.hospitalId) {
+        c.hospital = await Hospital.findById(c.hospitalId).select('name shortName city logo logoUrl theme');
+      }
+    }
 
     res.json({ success: true, counts });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }

@@ -249,6 +249,41 @@ export default function QueueStatus() {
           </div>
         )}
 
+        {/* ── Staff Announcements ── */}
+        {!isDone && status.announcement && (
+          <div className="card mb-4" style={{
+            borderColor: 'rgba(245,158,11,0.4)',
+            background: 'rgba(245,158,11,0.08)',
+            padding: '12px 16px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <span style={{ fontSize: 18, lineHeight: 1 }}>📢</span>
+              <div>
+                <p className="text-xs font-semibold mb-1" style={{ color: '#f59e0b' }}>Hospital Announcement</p>
+                <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{status.announcement}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Session Notes from Staff ── */}
+        {!isDone && status.sessionNotes && (
+          <div className="card mb-4" style={{
+            borderColor: 'rgba(99,102,241,0.3)',
+            background: 'rgba(99,102,241,0.06)',
+            padding: '12px 16px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <span style={{ fontSize: 18, lineHeight: 1 }}>💬</span>
+              <div>
+                <p className="text-xs font-semibold mb-1" style={{ color: '#818cf8' }}>Session Update</p>
+                <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{status.sessionNotes}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Footer controls */}
         <div className="text-center">
           <p className="text-xs mb-2" style={{ color: 'var(--color-text-muted)' }}>Updates automatically every 20 seconds</p>
           <button onClick={fetch} className="text-xs" style={{ color: 'var(--color-primary)' }}>Refresh now</button>

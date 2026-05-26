@@ -32,10 +32,11 @@ const NAV = {
     { to: '/staff/refund',   label: 'Refunds',   icon: '💸' },
   ],
   doctor: [
-    { to: '/doctor',                 label: 'Dashboard',     icon: '⬡', end: true },
-    { to: '/doctor/prescriptions',   label: 'Prescriptions', icon: '📋' },
-    { to: '/doctor/drugs',           label: 'Drug Library',  icon: '💊' },
-    { to: '/doctor/revenue',         label: 'My Revenue',    icon: '💰' },
+    { to: '/doctor',                 label: 'Dashboard',        icon: '⬡', end: true },
+    { to: '/doctor/calendar',        label: 'Session Calendar', icon: '📅' },
+    { to: '/doctor/prescriptions',   label: 'Prescriptions',    icon: '📋' },
+    { to: '/doctor/drugs',           label: 'Drug Library',     icon: '💊' },
+    { to: '/doctor/revenue',         label: 'My Revenue',       icon: '💰' },
   ],
 };
 
