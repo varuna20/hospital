@@ -100,12 +100,13 @@ async function processMessage(from, to, body) {
     }).select('name specialization todayStatus');
 
     if (sessions.length === 0) {
-      return `No doctors are currently seeing patients right now at *${hName}*.`;
+      return `No doctors are currently seeing patients.`;
     }
 
-    let resp = `⏳ *Current Ongoing Numbers:* \n\n`;
-    sessions.forEach(d => {
-      resp += `*${d.name}*: #${d.todayStatus?.currentNumber || 0}\n`;
+    let resp = `⏳ *Live Queue Status at ${hName}:*\n\n`;
+    sessions.forEach((d) => {
+      resp += `*${d.name}* (${d.specialization}):\n` +
+      `Current: #${d.todayStatus?.currentNumber || 0}\n`;
     });
     resp += `\nTo see the full display, visit:\n${process.env.FRONTEND_URL}/display/${hospital._id}`;
     return resp;

@@ -374,7 +374,7 @@ aptRouter.put('/:id/status', protect, authorize('staff', 'admin', 'doctor', 'sup
 aptRouter.get('/guest/:token', async (req, res) => {
   try {
     const apt = await Appointment.findOne({ guestToken: req.params.token })
-      .populate('patient', 'name').populate('doctor', 'name specialization room avgConsultMinutes todayStatus');
+      .populate('patient', 'name').populate('doctor', 'name specialization room avgConsultMinutes todayStatus sessions');
     if (!apt) return res.status(404).json({ success: false, message: 'Not found' });
     const today = moment().startOf('day').toDate();
     const queue = await Queue.findOne({ doctor: apt.doctor._id, date: today });
@@ -385,9 +385,31 @@ aptRouter.get('/guest/:token', async (req, res) => {
     });
     const isArrived = apt.doctor.todayStatus?.isArrived || false;
     const consultMinutes = await getDoctorConsultMinutes(apt.doctor._id, apt.doctor.avgConsultMinutes || 15);
-    res.json({ success: true, queueNumber: apt.queueNumber, status: apt.status,
-      currentServing: queue?.currentNumber || 0, peopleAhead: ahead, isArrived,
-      estimatedWaitMinutes: ahead * consultMinutes, avgSlotMinutes: consultMinutes, doctor: apt.doctor.name, room: apt.doctor.room });
+
+    // Find session time
+    let sessionTime = '';
+    if (apt.sessionId && apt.doctor?.sessions) {
+      const sess = apt.doctor.sessions.find(s => s._id?.toString() === apt.sessionId.toString() || `${s.sessionName}-${s.startTime}` === apt.sessionId);
+      if (sess) {
+        sessionTime = `${sess.startTime} - ${sess.endTime}`;
+      }
+    }
+
+    res.json({ 
+      success: true, 
+      queueNumber: apt.queueNumber, 
+      status: apt.status,
+      currentServing: queue?.currentNumber || 0, 
+      peopleAhead: ahead, 
+      isArrived,
+      estimatedWaitMinutes: ahead * consultMinutes, 
+      avgSlotMinutes: consultMinutes, 
+      doctor: apt.doctor.name, 
+      room: apt.doctor.room,
+      appointmentDate: apt.appointmentDate,
+      sessionLabel: apt.sessionLabel,
+      sessionTime
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

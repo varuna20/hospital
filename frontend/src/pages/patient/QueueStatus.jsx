@@ -48,8 +48,17 @@ export default function QueueStatus() {
     </div>
   );
 
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  
+  const apptDate = status.appointmentDate ? new Date(status.appointmentDate) : null;
+  if (apptDate) {
+    apptDate.setHours(0,0,0,0);
+  }
+  const isFuture = apptDate ? apptDate.getTime() > today.getTime() : false;
+
   const isDone = status.status === 'completed';
-  const isMyTurn = status.peopleAhead === 0 && !isDone;
+  const isMyTurn = !isFuture && status.peopleAhead === 0 && !isDone;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: 'var(--color-bg)' }}>
@@ -70,22 +79,47 @@ export default function QueueStatus() {
           </p>
           <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium"
             style={{
-              background: isDone ? 'rgba(16,185,129,0.15)' : isMyTurn ? 'rgba(245,158,11,0.15)' : 'var(--color-surface2)',
-              color: isDone ? '#10b981' : isMyTurn ? '#f59e0b' : 'var(--color-text-muted)'
+              background: isDone ? 'rgba(16,185,129,0.15)' : isMyTurn ? 'rgba(245,158,11,0.15)' : isFuture ? 'rgba(99,102,241,0.15)' : 'var(--color-surface2)',
+              color: isDone ? '#10b981' : isMyTurn ? '#f59e0b' : isFuture ? '#818cf8' : 'var(--color-text-muted)'
             }}>
             {isDone && '✓ '}
-            {isDone ? 'Consultation Complete' : isMyTurn ? '🔔 Your Turn! Please proceed' : status.peopleAhead + ' ahead of you'}
+            {isDone 
+              ? 'Consultation Complete' 
+              : isFuture 
+                ? 'Your appointment date and time as below' 
+                : isMyTurn 
+                  ? '🔔 Your Turn! Please proceed' 
+                  : status.peopleAhead + ' ahead of you'}
           </span>
+
+          {isFuture && apptDate && (
+            <div className="mt-4 pt-4 border-t text-left" style={{ borderColor: 'var(--color-border)' }}>
+              <div className="rounded-xl p-3 flex flex-col gap-2.5" style={{ background: 'var(--color-surface2)' }}>
+                <div>
+                  <p className="text-[10px] uppercase font-bold tracking-wider" style={{ color: 'var(--color-text-muted)' }}>Scheduled Date</p>
+                  <p className="text-sm font-bold text-white mt-0.5">
+                    {apptDate.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                  </p>
+                </div>
+                <div className="border-t pt-2" style={{ borderColor: 'var(--color-border)' }}>
+                  <p className="text-[10px] uppercase font-bold tracking-wider" style={{ color: 'var(--color-text-muted)' }}>Session Time</p>
+                  <p className="text-sm font-bold mt-0.5" style={{ color: 'var(--color-primary)' }}>
+                    {status.sessionLabel || 'General'} {status.sessionTime ? `(${status.sessionTime})` : ''}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        {!isDone && status.isArrived === false && (
+        {!isFuture && !isDone && status.isArrived === false && (
           <div className="card text-center mb-4 border-dashed border-2" style={{ borderColor: 'var(--color-border)' }}>
             <p className="text-sm font-medium" style={{ color: 'var(--color-text-muted)' }}>Session is not started yet</p>
             <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>Please wait for the doctor to arrive.</p>
           </div>
         )}
 
-        {!isDone && status.isArrived !== false && (
+        {!isFuture && !isDone && status.isArrived !== false && (
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div className="card text-center">
               <p className="text-3xl font-bold text-white" style={{ fontFamily: 'Sora,sans-serif' }}>{status.currentServing}</p>
@@ -98,7 +132,7 @@ export default function QueueStatus() {
           </div>
         )}
 
-        {!isDone && status.peopleAhead > 0 && (
+        {!isFuture && !isDone && status.peopleAhead > 0 && (
           <div className="card text-center mb-4" style={{ borderColor: 'rgba(var(--color-primary-rgb),0.3)', background: 'rgba(var(--color-primary-rgb),0.05)' }}>
             <p className="text-sm mb-1" style={{ color: 'var(--color-text-muted)' }}>Estimated Wait</p>
             <p className="text-2xl font-bold" style={{ color: 'var(--color-primary)', fontFamily: 'Sora,sans-serif' }}>
