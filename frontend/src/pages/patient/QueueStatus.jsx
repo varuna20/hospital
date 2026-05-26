@@ -5,11 +5,71 @@ import { useSocket } from '../../context/SocketContext';
 import api from '../../utils/api';
 import { waitEstimate } from '../../utils/helpers';
 
+const translations = {
+  en: {
+    appNotFound: "Appointment Not Found",
+    invalidLink: "The link may be invalid or expired.",
+    bookNew: "Book New Appointment",
+    queueStatus: "Your Queue Status",
+    yourNumber: "YOUR NUMBER",
+    consultComplete: "Consultation Complete",
+    futureAppt: "Your appointment date and time as below",
+    yourTurn: "🔔 Your Turn! Please proceed",
+    aheadOfYou: "ahead of you",
+    scheduledDate: "Scheduled Date",
+    sessionTime: "Session Time",
+    addToCalendar: "📅 Add to Calendar (1h Reminder)",
+    sessionNotStarted: "Session is not started yet",
+    waitDoctor: "Please wait for the doctor to arrive.",
+    nowServing: "Now Serving",
+    estimatedWait: "Estimated Wait",
+    hospitalAnnouncement: "Hospital Announcement",
+    sessionUpdate: "Session Update",
+    doctorArrival: "Doctor Arrival Info",
+    expectedAt: "Expected at: ",
+    arrivedAt: "Arrived at: ",
+    autoUpdate: "Updates automatically every 20 seconds",
+    refreshNow: "Refresh now",
+    bookAnother: "← Book another appointment",
+    general: "General"
+  },
+  si: {
+    appNotFound: "හමුවීම සොයාගත නොහැක",
+    invalidLink: "සබැඳිය අවලංගු හෝ කල් ඉකුත් වී තිබිය හැක.",
+    bookNew: "නව හමුවීමක් වෙන්කරන්න",
+    queueStatus: "ඔබගේ පෝලිම් තත්ත්වය",
+    yourNumber: "ඔබගේ අංකය",
+    consultComplete: "උපදේශනය අවසන්",
+    futureAppt: "ඔබගේ හමුවීමේ දිනය සහ වේලාව පහත දැක්වේ",
+    yourTurn: "🔔 ඔබගේ වාරයයි! කරුණාකර යන්න",
+    aheadOfYou: "ඔබට පෙර සිටී",
+    scheduledDate: "නියමිත දිනය",
+    sessionTime: "සැසියේ වේලාව",
+    addToCalendar: "📅 දින දර්ශනයට එක් කරන්න (පැය 1ක සිහිකැඳවීම)",
+    sessionNotStarted: "සැසිය තවමත් ආරම්භ කර නොමැත",
+    waitDoctor: "කරුණාකර වෛද්‍යවරයා පැමිණෙන තෙක් රැඳී සිටින්න.",
+    nowServing: "දැනට සේවය සපයන අංකය",
+    estimatedWait: "අපේක්ෂිත රැඳී සිටීමේ කාලය",
+    hospitalAnnouncement: "රෝහල් නිවේදනය",
+    sessionUpdate: "සැසිය පිළිබඳ යාවත්කාලීන කිරීම",
+    doctorArrival: "වෛද්‍යවරයාගේ පැමිණීම",
+    expectedAt: "අපේක්ෂිත වේලාව: ",
+    arrivedAt: "පැමිණි වේලාව: ",
+    autoUpdate: "තත්පර 20කට වරක් ස්වයංක්‍රීයව යාවත්කාලීන වේ",
+    refreshNow: "දැන් යාවත්කාලීන කරන්න",
+    bookAnother: "← වෙනත් හමුවීමක් වෙන්කරන්න",
+    general: "සාමාන්‍ය"
+  }
+};
+
 export default function QueueStatus() {
   const { token } = useParams();
   const { socket } = useSocket();
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [lang, setLang] = useState('en');
+
+  const t = translations[lang];
 
   const fetch = useCallback(async () => {
     try {
@@ -38,12 +98,16 @@ export default function QueueStatus() {
   );
 
   if (!status) return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'var(--color-bg)' }}>
+    <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: 'var(--color-bg)' }}>
+      <div className="absolute top-4 right-4 flex gap-2">
+        <button onClick={() => setLang('en')} className={`px-3 py-1 rounded-full text-xs font-bold ${lang==='en'?'bg-white text-black':'bg-white/10 text-white/50'}`}>EN</button>
+        <button onClick={() => setLang('si')} className={`px-3 py-1 rounded-full text-xs font-bold ${lang==='si'?'bg-white text-black':'bg-white/10 text-white/50'}`}>සිං</button>
+      </div>
       <div className="text-center">
         <div className="text-5xl mb-4">🔍</div>
-        <h2 className="text-xl font-bold text-white mb-2">Appointment Not Found</h2>
-        <p className="mb-4" style={{ color: 'var(--color-text-muted)' }}>The link may be invalid or expired.</p>
-        <a href="/" className="btn-primary inline-block">Book New Appointment</a>
+        <h2 className="text-xl font-bold text-white mb-2">{t.appNotFound}</h2>
+        <p className="mb-4" style={{ color: 'var(--color-text-muted)' }}>{t.invalidLink}</p>
+        <a href="/" className="btn-primary inline-block">{t.bookNew}</a>
       </div>
     </div>
   );
@@ -142,14 +206,21 @@ export default function QueueStatus() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: 'var(--color-bg)' }}>
-      <div className="w-full max-w-sm">
+      {/* Language Toggle */}
+      <div className="absolute top-4 right-4 flex items-center gap-2 bg-[rgba(255,255,255,0.05)] p-1 rounded-full border border-white/10">
+        <span className="pl-2 text-[16px]">🌐</span>
+        <button onClick={() => setLang('en')} className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${lang==='en'?'bg-white text-black':'text-white/50 hover:text-white'}`}>EN</button>
+        <button onClick={() => setLang('si')} className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${lang==='si'?'bg-white text-black':'text-white/50 hover:text-white'}`}>සිං</button>
+      </div>
+
+      <div className="w-full max-w-sm mt-8">
         <div className="text-center mb-6">
           {status.hospitalName && (
             <p className="text-xs uppercase font-black tracking-widest mb-1.5" style={{ color: 'var(--color-primary)' }}>
               {status.hospitalName}
             </p>
           )}
-          <h1 className="text-xl font-bold text-white mb-1" style={{ fontFamily: 'Sora,sans-serif' }}>Your Queue Status</h1>
+          <h1 className="text-xl font-bold text-white mb-1" style={{ fontFamily: 'Sora,sans-serif' }}>{t.queueStatus}</h1>
           <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Dr. {status.doctor} · {status.room}</p>
         </div>
 
@@ -158,7 +229,7 @@ export default function QueueStatus() {
           boxShadow: isMyTurn ? '0 0 40px rgba(var(--color-primary-rgb),0.5)' : 'none',
           borderColor: isMyTurn ? 'var(--color-primary)' : 'var(--color-border)'
         }}>
-          <p className="text-xs tracking-widest mb-2" style={{ color: 'var(--color-text-muted)' }}>YOUR NUMBER</p>
+          <p className="text-xs tracking-widest mb-2" style={{ color: 'var(--color-text-muted)' }}>{t.yourNumber}</p>
           <p className="font-black text-8xl my-3" style={{ color: 'var(--color-primary)', fontFamily: 'Sora,sans-serif' }}>
             {status.queueNumber}
           </p>
@@ -169,27 +240,27 @@ export default function QueueStatus() {
             }}>
             {isDone && '✓ '}
             {isDone 
-              ? 'Consultation Complete' 
+              ? t.consultComplete 
               : isFuture 
-                ? 'Your appointment date and time as below' 
+                ? t.futureAppt 
                 : isMyTurn 
-                  ? '🔔 Your Turn! Please proceed' 
-                  : status.peopleAhead + ' ahead of you'}
+                  ? t.yourTurn 
+                  : `${status.peopleAhead} ${t.aheadOfYou}`}
           </span>
 
           {isFuture && apptDate && (
             <div className="mt-4 pt-4 border-t text-left" style={{ borderColor: 'var(--color-border)' }}>
               <div className="rounded-xl p-3 flex flex-col gap-2.5" style={{ background: 'var(--color-surface2)' }}>
                 <div>
-                  <p className="text-[10px] uppercase font-bold tracking-wider" style={{ color: 'var(--color-text-muted)' }}>Scheduled Date</p>
+                  <p className="text-[10px] uppercase font-bold tracking-wider" style={{ color: 'var(--color-text-muted)' }}>{t.scheduledDate}</p>
                   <p className="text-sm font-bold text-white mt-0.5">
-                    {apptDate.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                    {apptDate.toLocaleDateString(lang === 'si' ? 'si-LK' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                   </p>
                 </div>
                 <div className="border-t pt-2" style={{ borderColor: 'var(--color-border)' }}>
-                  <p className="text-[10px] uppercase font-bold tracking-wider" style={{ color: 'var(--color-text-muted)' }}>Session Time</p>
+                  <p className="text-[10px] uppercase font-bold tracking-wider" style={{ color: 'var(--color-text-muted)' }}>{t.sessionTime}</p>
                   <p className="text-sm font-bold mt-0.5" style={{ color: 'var(--color-primary)' }}>
-                    {status.sessionLabel || 'General'} {status.sessionTime ? `(${status.sessionTime})` : ''}
+                    {status.sessionLabel || t.general} {status.sessionTime ? `(${status.sessionTime})` : ''}
                   </p>
                 </div>
               </div>
@@ -216,14 +287,14 @@ export default function QueueStatus() {
               e.currentTarget.style.borderColor = 'rgba(99,102,241,0.3)';
             }}
           >
-            📅 Add to Calendar (1h Reminder)
+            {t.addToCalendar}
           </button>
         )}
 
         {!isFuture && !isDone && status.isArrived === false && (
           <div className="card text-center mb-4 border-dashed border-2" style={{ borderColor: 'var(--color-border)' }}>
-            <p className="text-sm font-medium" style={{ color: 'var(--color-text-muted)' }}>Session is not started yet</p>
-            <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>Please wait for the doctor to arrive.</p>
+            <p className="text-sm font-medium" style={{ color: 'var(--color-text-muted)' }}>{t.sessionNotStarted}</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>{t.waitDoctor}</p>
           </div>
         )}
 
@@ -231,21 +302,42 @@ export default function QueueStatus() {
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div className="card text-center">
               <p className="text-3xl font-bold text-white" style={{ fontFamily: 'Sora,sans-serif' }}>{status.currentServing}</p>
-              <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>Now Serving</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>{t.nowServing}</p>
             </div>
             <div className="card text-center">
               <p className="text-3xl font-bold text-white" style={{ fontFamily: 'Sora,sans-serif' }}>{status.peopleAhead}</p>
-              <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>Ahead of You</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>{t.aheadOfYou}</p>
             </div>
           </div>
         )}
 
         {!isFuture && !isDone && status.peopleAhead > 0 && (
           <div className="card text-center mb-4" style={{ borderColor: 'rgba(var(--color-primary-rgb),0.3)', background: 'rgba(var(--color-primary-rgb),0.05)' }}>
-            <p className="text-sm mb-1" style={{ color: 'var(--color-text-muted)' }}>Estimated Wait</p>
+            <p className="text-sm mb-1" style={{ color: 'var(--color-text-muted)' }}>{t.estimatedWait}</p>
             <p className="text-2xl font-bold" style={{ color: 'var(--color-primary)', fontFamily: 'Sora,sans-serif' }}>
               {waitEstimate(status.peopleAhead, status.avgSlotMinutes || 15)}
             </p>
+          </div>
+        )}
+
+        {/* ── Doctor Arrival Info ── */}
+        {!isDone && (status.arrivalTime || status.expectedArrivalTime) && (
+          <div className="card mb-4" style={{
+            borderColor: 'rgba(16,185,129,0.3)',
+            background: 'rgba(16,185,129,0.06)',
+            padding: '12px 16px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <span style={{ fontSize: 18, lineHeight: 1 }}>⏱️</span>
+              <div>
+                <p className="text-xs font-semibold mb-1" style={{ color: '#10b981' }}>{t.doctorArrival}</p>
+                {status.arrivalTime ? (
+                   <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{t.arrivedAt} <span className="text-white font-bold">{status.arrivalTime}</span></p>
+                ) : status.expectedArrivalTime ? (
+                   <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{t.expectedAt} <span className="text-white font-bold">{status.expectedArrivalTime}</span></p>
+                ) : null}
+              </div>
+            </div>
           </div>
         )}
 
@@ -259,7 +351,7 @@ export default function QueueStatus() {
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
               <span style={{ fontSize: 18, lineHeight: 1 }}>📢</span>
               <div>
-                <p className="text-xs font-semibold mb-1" style={{ color: '#f59e0b' }}>Hospital Announcement</p>
+                <p className="text-xs font-semibold mb-1" style={{ color: '#f59e0b' }}>{t.hospitalAnnouncement}</p>
                 <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{status.announcement}</p>
               </div>
             </div>
@@ -276,7 +368,7 @@ export default function QueueStatus() {
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
               <span style={{ fontSize: 18, lineHeight: 1 }}>💬</span>
               <div>
-                <p className="text-xs font-semibold mb-1" style={{ color: '#818cf8' }}>Session Update</p>
+                <p className="text-xs font-semibold mb-1" style={{ color: '#818cf8' }}>{t.sessionUpdate}</p>
                 <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{status.sessionNotes}</p>
               </div>
             </div>
@@ -285,11 +377,11 @@ export default function QueueStatus() {
 
         {/* Footer controls */}
         <div className="text-center">
-          <p className="text-xs mb-2" style={{ color: 'var(--color-text-muted)' }}>Updates automatically every 20 seconds</p>
-          <button onClick={fetch} className="text-xs" style={{ color: 'var(--color-primary)' }}>Refresh now</button>
+          <p className="text-xs mb-2" style={{ color: 'var(--color-text-muted)' }}>{t.autoUpdate}</p>
+          <button onClick={fetch} className="text-xs" style={{ color: 'var(--color-primary)' }}>{t.refreshNow}</button>
         </div>
         <div className="text-center mt-6">
-          <a href="/" className="text-sm" style={{ color: 'var(--color-text-muted)' }}>← Book another appointment</a>
+          <a href="/" className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{t.bookAnother}</a>
         </div>
       </div>
       <ChevFooter minimal />

@@ -308,7 +308,16 @@ export default function DoctorDisplay() {
       <div style={{ height:FS.status*2.5, flexShrink:0, display:'flex', alignItems:'center', padding:'0 40px', background: doctor?.isArrived?'rgba(0,230,118,0.08)':'rgba(255,171,64,0.08)', borderBottom:'1px solid rgba(255,255,255,0.05)' }}>
         <div style={{ width:10, height:10, borderRadius:'50%', background:doctor?.isArrived?'#00e676':'#ffab40', marginRight:15, boxShadow:`0 0 10px ${doctor?.isArrived?'#00e676':'#ffab40'}` }} />
         <span style={{ color:'white', fontWeight:700, marginRight:10 }}>{doctor?.isArrived ? 'DOCTOR IN SESSION' : 'EXPECTING DOCTOR'}</span>
-        <span style={{ color:doctor?.isArrived?'#00e676':'#ffab40' }}>{doctor?.isArrived ? '✓ Consultation Started' : '⏳ Patient arrivals in progress'}</span>
+        <span style={{ color:doctor?.isArrived?'#00e676':'#ffab40', marginRight: 20 }}>
+          {doctor?.isArrived 
+            ? `✓ Consultation Started ${doctor.arrivalTime ? `(Arrived at ${doctor.arrivalTime})` : ''}` 
+            : `⏳ Patient arrivals in progress ${doctor?.expectedArrivalTime ? `(Expected at ${doctor.expectedArrivalTime})` : ''}`}
+        </span>
+        {doctor?.sessionNotes && (
+          <span style={{ color:'#818cf8', fontSize:FS.status*0.8, background:'rgba(99,102,241,0.15)', padding:'4px 10px', borderRadius:8 }}>
+            💬 {doctor.sessionNotes}
+          </span>
+        )}
         
         {/* Session selector for staff (hidden but clickable) */}
         {doctor?.sessions?.length > 1 && (

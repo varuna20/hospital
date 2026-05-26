@@ -399,6 +399,8 @@ aptRouter.get('/guest/:token', async (req, res) => {
 
     const announcement = queue?.announcement || apt.hospitalId?.queueSettings?.announcement || '';
     const sessionNotes = apt.doctor.todayStatus?.sessionNotes || '';
+    const arrivalTime = apt.doctor.todayStatus?.arrivalTime || '';
+    const expectedArrivalTime = apt.doctor.todayStatus?.expectedArrivalTime || '';
 
     res.json({ 
       success: true, 
@@ -416,7 +418,9 @@ aptRouter.get('/guest/:token', async (req, res) => {
       sessionTime,
       hospitalName: apt.hospitalId?.shortName || apt.hospitalId?.name || 'Hospital',
       announcement,
-      sessionNotes
+      sessionNotes,
+      arrivalTime,
+      expectedArrivalTime
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
