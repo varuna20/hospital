@@ -259,6 +259,7 @@ aptRouter.post('/book', async (req, res) => {
       appointments: createdAppointments,
       appointment: mainApt,
       queueNumber: mainApt.queueNumber,
+      queueNumbers: createdAppointments.map(a => a.queueNumber),
       guestToken: mainApt.guestToken,
       estimatedWaitMinutes: mainApt.queueNumber * (await getDoctorConsultMinutes(doctorId, doctor.avgConsultMinutes || 15)),
       fees: mainApt.fees

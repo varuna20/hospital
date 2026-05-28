@@ -129,7 +129,8 @@ router.post('/patient-register', async (req, res) => {
     });
 
     const token = generateToken(patient._id);
-    res.status(201).json({ success: true, token, patient: { id: patient._id, name: patient.name, phone: patient.phone, role: 'patient' } });
+    const { password: _p, ...safePatient } = patient.toObject();
+    res.status(201).json({ success: true, token, patient: { ...safePatient, role: 'patient' } });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -191,7 +192,8 @@ router.post('/patient/verify-otp', async (req, res) => {
     await patient.save();
 
     const token = generateToken(patient._id);
-    res.json({ success: true, token, patient: { id: patient._id, name: patient.name, phone: patient.phone, role: 'patient' } });
+    const { otpCode: _o, otpExpires: _oe, password: _p, ...safePatient } = patient.toObject();
+    res.json({ success: true, token, patient: { ...safePatient, role: 'patient' } });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Verification failed' });
   }
@@ -206,7 +208,8 @@ router.post('/patient-login', async (req, res) => {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
 
     const token = generateToken(patient._id);
-    res.json({ success: true, token, patient: { id: patient._id, name: patient.name, role: 'patient' } });
+    const { password: _p, ...safePatient } = patient.toObject();
+    res.json({ success: true, token, patient: { ...safePatient, role: 'patient' } });
   } catch {
     res.status(500).json({ success: false, message: 'Server error' });
   }
@@ -246,7 +249,8 @@ router.post('/patient/google', async (req, res) => {
     }
 
     const jwtToken = generateToken(patient._id);
-    res.json({ success: true, token: jwtToken, patient: { id: patient._id, name: patient.name, email: patient.email, role: 'patient', avatar: patient.avatar } });
+    const { password: _p, ...safePatient } = patient.toObject();
+    res.json({ success: true, token: jwtToken, patient: { ...safePatient, role: 'patient' } });
   } catch (err) {
     console.error('Google SSO Error:', err.message);
     res.status(500).json({ success: false, message: err.message || 'SSO login failed' });

@@ -10,7 +10,7 @@ import { fDate } from '../../utils/helpers';
 export default function PatientDashboard() {
   const { user, login, logout, updateUser } = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab] = useState('profile'); // profile | family | history | prescriptions
+  const [tab, setTab] = useState('overview'); // overview | profile | family | history | prescriptions
   const [loading, setLoading] = useState(true);
 
   // Profile State
@@ -18,6 +18,7 @@ export default function PatientDashboard() {
 
   // History State
   const [history, setHistory] = useState([]);
+  const [upcoming, setUpcoming] = useState([]);
   const [prescriptions, setPrescriptions] = useState([]);
 
   // Family Members State
@@ -47,9 +48,17 @@ export default function PatientDashboard() {
           });
         }
       } else if (tab === 'history') {
-        const { data } = await api.get('/appointments/patient-history'); // We need to create this route
-        if (data.success) setHistory(data.appointments);
-      } else if (tab === 'prescriptions') {
+        const { data } = await api.get('/appointments/patient-history');
+        if (data.success) {
+          setHistory(data.appointments.filter(a => new Date(a.appointmentDate) < new Date(new Date().setHours(0,0,0,0))));
+        }
+      } else if (tab === 'overview') {
+        const { data } = await api.get('/appointments/patient-history');
+        if (data.success) {
+          const all = data.appointments;
+          const today = new Date(new Date().setHours(0,0,0,0));
+          setUpcoming(all.filter(a => new Date(a.appointmentDate) >= today));
+        }
         const { data } = await api.get('/prescriptions/my-prescriptions'); // We need to create this route
         if (data.success) setPrescriptions(data.prescriptions);
       }
@@ -155,14 +164,14 @@ export default function PatientDashboard() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6 bg-[var(--color-surface)] p-1 rounded-xl">
-          {['profile', 'family', 'history', 'prescriptions'].map(t => (
+        <div className="flex gap-2 mb-6 bg-[var(--color-surface)] p-1 rounded-xl overflow-x-auto">
+          {['overview', 'profile', 'family', 'history', 'prescriptions'].map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`flex-1 py-2 px-4 rounded-lg text-sm font-bold capitalize transition-colors ${tab === t ? 'bg-[var(--color-primary)] text-black' : 'text-[var(--color-text-muted)] hover:text-white'}`}
+              className={`flex-1 min-w-[100px] py-2 px-4 rounded-lg text-sm font-bold capitalize transition-colors ${tab === t ? 'bg-[var(--color-primary)] text-black' : 'text-[var(--color-text-muted)] hover:text-white'}`}
             >
-              {t === 'family' ? '👥 Family Members' : t}
+              {t === 'family' ? '👥 Family' : t === 'history' ? 'Past Visits' : t}
             </button>
           ))}
         </div>
@@ -174,6 +183,69 @@ export default function PatientDashboard() {
           </div>
         ) : (
           <div className="card">
+            {tab === 'overview' && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-xl font-bold mb-1">My Dashboard</h2>
+                  <p className="text-sm text-[var(--color-text-muted)]">Welcome back, {user?.name}</p>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-[var(--color-surface2)] p-4 rounded-xl border border-[var(--color-border)]">
+                    <p className="text-xs text-[var(--color-text-muted)] font-bold uppercase tracking-wider mb-1">Upcoming Bookings</p>
+                    <p className="text-3xl font-black text-[var(--color-primary)]">{upcoming.length}</p>
+                  </div>
+                  <div className="bg-[var(--color-surface2)] p-4 rounded-xl border border-[var(--color-border)]">
+                    <p className="text-xs text-[var(--color-text-muted)] font-bold uppercase tracking-wider mb-1">Family Members</p>
+                    <p className="text-3xl font-black text-[var(--color-primary)]">{user?.familyMembers?.length || 0}</p>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-bold mb-3">Upcoming Appointments</h3>
+                  {upcoming.length === 0 ? (
+                    <div className="p-8 bg-[var(--color-surface2)] rounded-xl text-center border border-dashed border-[var(--color-border)]">
+                      <p className="text-[var(--color-text-muted)] text-sm mb-2">No upcoming appointments.</p>
+                      <button onClick={() => navigate('/')} className="text-xs text-[var(--color-primary)] font-bold">Book a new appointment</button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {upcoming.map(h => {
+                        const patientName = h.patient?.name || 'Myself';
+                        const isFamily = patientName.trim().toLowerCase() !== user?.name?.trim().toLowerCase();
+                        return (
+                          <div key={h._id} className="p-4 bg-[var(--color-surface2)] rounded-lg border border-[var(--color-primary)]/30 flex justify-between items-center shadow-[0_0_15px_rgba(var(--color-primary-rgb),0.1)]">
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="font-bold text-[var(--color-primary)]">{fDate(h.appointmentDate)}</p>
+                                {isFamily ? (
+                                  <span className="px-2 py-0.5 rounded bg-[var(--color-primary)]/10 text-[9px] text-[var(--color-primary)] font-bold uppercase tracking-wider">
+                                    👥 {patientName}
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded bg-white/5 text-[9px] text-white/50 font-bold uppercase tracking-wider">
+                                    👤 Myself
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm text-white/90 font-bold">Dr. {h.doctor?.name} <span className="text-white/60 text-xs font-normal">({h.doctor?.specialization})</span></p>
+                              {h.queueNumber && (
+                                <p className="text-xs text-[var(--color-text-muted)] mt-1">Ticket: #{h.queueNumber}</p>
+                              )}
+                            </div>
+                            <div className="text-right flex flex-col items-end gap-2">
+                              <span className="px-2 py-1 rounded bg-[var(--color-primary)]/20 text-xs text-[var(--color-primary)] font-bold uppercase">{h.status}</span>
+                              <a href={`/queue-status/${h.guestToken}`} className="text-[10px] text-[var(--color-primary)] underline">View Queue</a>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {tab === 'profile' && (
               <form onSubmit={updateProfile} className="space-y-4">
                 <h2 className="text-lg font-bold mb-4">Edit Profile</h2>

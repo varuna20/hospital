@@ -365,8 +365,12 @@ export default function BookingPage() {
               <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 16, marginBottom: 40 }}>Your appointment has been successfully scheduled.</p>
               
               <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24, padding: '32px 20px', marginBottom: 40 }}>
-                <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Your Queue Number</p>
-                <h1 style={{ color: 'var(--color-primary)', fontSize: 72, fontFamily: 'Sora,sans-serif', fontWeight: 900, lineHeight: 1, marginBottom: 12 }}>{booking.queueNumber}</h1>
+                <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>
+                  {booking.queueNumbers && booking.queueNumbers.length > 1 ? 'Your Queue Numbers' : 'Your Queue Number'}
+                </p>
+                <h1 style={{ color: 'var(--color-primary)', fontSize: booking.queueNumbers && booking.queueNumbers.length > 2 ? 48 : 72, fontFamily: 'Sora,sans-serif', fontWeight: 900, lineHeight: 1, marginBottom: 12 }}>
+                  {booking.queueNumbers ? booking.queueNumbers.join(', ') : booking.queueNumber}
+                </h1>
                 <p style={{ color: 'white', fontSize: 14, fontWeight: 600 }}>Estimated Wait: {waitEstimateFromMins(booking.estimatedWaitMinutes)}</p>
               </div>
 

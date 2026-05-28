@@ -258,8 +258,12 @@ export default function DoctorDisplay() {
   const primary = hospital?.theme?.primary || '#00e5c4';
   const bg      = hospital?.theme?.background || '#02040a';
   const accent  = hospital?.theme?.accent || '#ff6b35';
-  const tickerText = data.announcement || hospital?.announcement || `Welcome to ${hospital.name}`;
-
+  let tickerText = data.announcement || hospital?.announcement || `Welcome to ${hospital.name}`;
+  if (!doctor?.isArrived && doctor?.expectedArrivalTime) {
+    tickerText = `🔔 DOCTOR DELAYED - EXPECTED ARRIVAL: ${doctor.expectedArrivalTime} • ${tickerText}`;
+  } else if (doctor?.sessionNotes) {
+    tickerText = `💬 UPDATE: ${doctor.sessionNotes} • ${tickerText}`;
+  }
   if (!started) return (
     <div className="min-h-screen flex flex-col items-center justify-center cursor-pointer" 
          style={{ background: bg }}
