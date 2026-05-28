@@ -127,11 +127,29 @@ const getCSS = (primary, bg, accent) => {
 
 function speakNext(number, roomName) {
   if (!('speechSynthesis' in window)) return;
+  
+  // Cancel any stuck or ongoing speech to reset the engine
+  window.speechSynthesis.cancel();
+
   const room = roomName ? ` to ${roomName}` : '';
-  const text = `Patient Number ${number}${room}. Patient Number ${number}${room}.`;
+  
+  // Adding a slight text pause (...) at the beginning prevents the first syllable from being cut off on Chrome
+  const text = `... Patient Number ${number}${room}. Patient Number ${number}${room}.`;
   const u = new SpeechSynthesisUtterance(text);
+  
   u.rate = 0.88; u.pitch = 1.0; u.volume = 1; u.lang = 'en-US';
-  setTimeout(() => window.speechSynthesis.speak(u), 300);
+
+  // Explicitly assign a loaded voice if available, which stabilizes playback
+  const voices = window.speechSynthesis.getVoices();
+  if (voices.length > 0) {
+    const enVoice = voices.find(v => v.lang.startsWith('en-') || v.lang.startsWith('en_')) || voices[0];
+    if (enVoice) u.voice = enVoice;
+  }
+
+  // Small delay to ensure engine reset before speaking
+  setTimeout(() => {
+    window.speechSynthesis.speak(u);
+  }, 250);
 }
 
 
