@@ -112,6 +112,7 @@ export default function QueueStatus() {
     </div>
   );
 
+  const now = new Date();
   const today = new Date();
   today.setHours(0,0,0,0);
   
@@ -120,6 +121,19 @@ export default function QueueStatus() {
     apptDate.setHours(0,0,0,0);
   }
   const isFuture = apptDate ? apptDate.getTime() > today.getTime() : false;
+
+  // Check if session start time has passed (for today's appointments)
+  const sessionHasStarted = (() => {
+    if (isFuture) return false;
+    if (!status.sessionTime) return true; // no session time info → assume started
+    const startPart = status.sessionTime.split('-')[0]?.trim();
+    if (!startPart || !startPart.includes(':')) return true;
+    const [sh, sm] = startPart.split(':').map(Number);
+    if (isNaN(sh)) return true;
+    const sessionStart = new Date();
+    sessionStart.setHours(sh, sm || 0, 0, 0);
+    return now >= sessionStart;
+  })();
 
   const isDone = status.status === 'completed';
   const isMyTurn = !isFuture && status.peopleAhead === 0 && !isDone;
@@ -320,17 +334,17 @@ export default function QueueStatus() {
           </div>
         )}
 
-        {/* ── Doctor Arrival Info ── */}
-        {!isDone && (status.arrivalTime || status.expectedArrivalTime) && (
+        {/* ── Doctor Arrival Info ── only shown on/after session day once session starts or staff sends a message */}
+        {!isFuture && !isDone && sessionHasStarted && (status.arrivalTime || status.expectedArrivalTime) && (
           <div className="card mb-4" style={{
-            borderColor: 'rgba(16,185,129,0.3)',
-            background: 'rgba(16,185,129,0.06)',
+            borderColor: status.arrivalTime ? 'rgba(16,185,129,0.3)' : 'rgba(245,158,11,0.3)',
+            background: status.arrivalTime ? 'rgba(16,185,129,0.06)' : 'rgba(245,158,11,0.06)',
             padding: '12px 16px',
           }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-              <span style={{ fontSize: 18, lineHeight: 1 }}>⏱️</span>
+              <span style={{ fontSize: 18, lineHeight: 1 }}>{status.arrivalTime ? '✅' : '⏱️'}</span>
               <div>
-                <p className="text-xs font-semibold mb-1" style={{ color: '#10b981' }}>{t.doctorArrival}</p>
+                <p className="text-xs font-semibold mb-1" style={{ color: status.arrivalTime ? '#10b981' : '#f59e0b' }}>{t.doctorArrival}</p>
                 {status.arrivalTime ? (
                    <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{t.arrivedAt} <span className="text-white font-bold">{status.arrivalTime}</span></p>
                 ) : status.expectedArrivalTime ? (

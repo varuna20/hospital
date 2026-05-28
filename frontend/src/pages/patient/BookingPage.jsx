@@ -683,24 +683,34 @@ export default function BookingPage() {
               <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, marginBottom: 20 }}>Enter your information to complete the booking</p>
 
               {/* Booking summary */}
-              <div style={{ background: 'rgba(var(--color-primary-rgb),0.06)', border: '1px solid rgba(var(--color-primary-rgb),0.15)', borderRadius: 14, padding: '16px 18px', marginBottom: 24 }}>
-                <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Booking Summary</p>
-                {[
-                  ['Hospital', selHospital?.name],
-                  ['Doctor', selDoctor?.name],
-                  ['Session', selSession?.label || 'General'],
-                  ['Time', `${selSession?.startTime} - ${selSession?.endTime}`],
-                  ['Date', new Date(date + 'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})],
-                  ['Base Fee', `${sym} ${((selDoctor?.fees?.doctorFee||0)+(selDoctor?.fees?.hospitalCharge||0)).toLocaleString()}`],
-                  ...(isRefundable ? [['Refundable Charge', `${sym} 500`]] : []),
-                  ['Total Amount', `${sym} ${((selDoctor?.fees?.doctorFee||0)+(selDoctor?.fees?.hospitalCharge||0) + (isRefundable ? 500 : 0)).toLocaleString()}`],
-                ].map(([l, v]) => (
-                  <div key={l} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, borderTop: l === 'Total Amount' ? '1px dashed rgba(255,255,255,0.15)' : 'none', paddingTop: l === 'Total Amount' ? 8 : 0 }}>
-                    <span style={{ color: l === 'Total Amount' ? 'var(--color-primary)' : 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: l === 'Total Amount' ? 700 : 400 }}>{l}</span>
-                    <span style={{ color: l === 'Total Amount' ? 'var(--color-primary)' : 'white', fontWeight: l === 'Total Amount' ? 800 : 500, fontSize: 13, textAlign: 'right', maxWidth: '60%' }}>{v}</span>
+              {(() => {
+                const numPatients = (user?.role === 'patient' && selectedMemberIds.length > 0) ? selectedMemberIds.length : 1;
+                const baseFeePerPerson = (selDoctor?.fees?.doctorFee || 0) + (selDoctor?.fees?.hospitalCharge || 0);
+                const refundableCharge = isRefundable ? 500 : 0;
+                const totalAmount = (baseFeePerPerson * numPatients) + refundableCharge;
+                return (
+                  <div style={{ background: 'rgba(var(--color-primary-rgb),0.06)', border: '1px solid rgba(var(--color-primary-rgb),0.15)', borderRadius: 14, padding: '16px 18px', marginBottom: 24 }}>
+                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Booking Summary</p>
+                    {[
+                      ['Hospital', selHospital?.name],
+                      ['Doctor', selDoctor?.name],
+                      ['Session', selSession?.label || 'General'],
+                      ['Time', `${selSession?.startTime} - ${selSession?.endTime}`],
+                      ['Date', new Date(date + 'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})],
+                      ['Patients', `${numPatients} ${numPatients > 1 ? 'patients' : 'patient'}`],
+                      ['Fee per Patient', `${sym} ${baseFeePerPerson.toLocaleString()}`],
+                      ...(numPatients > 1 ? [[`Subtotal (×${numPatients})`, `${sym} ${(baseFeePerPerson * numPatients).toLocaleString()}`]] : []),
+                      ...(isRefundable ? [['Refundable Charge', `${sym} ${refundableCharge}`]] : []),
+                      ['Total Amount', `${sym} ${totalAmount.toLocaleString()}`],
+                    ].map(([l, v]) => (
+                      <div key={l} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, borderTop: l === 'Total Amount' ? '1px dashed rgba(255,255,255,0.15)' : 'none', paddingTop: l === 'Total Amount' ? 8 : 0 }}>
+                        <span style={{ color: l === 'Total Amount' ? 'var(--color-primary)' : 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: l === 'Total Amount' ? 700 : 400 }}>{l}</span>
+                        <span style={{ color: l === 'Total Amount' ? 'var(--color-primary)' : 'white', fontWeight: l === 'Total Amount' ? 800 : 500, fontSize: 13, textAlign: 'right', maxWidth: '60%' }}>{v}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                );
+              })()}
 
               {/* Refundable Booking Option */}
               <div 
