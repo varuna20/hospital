@@ -183,7 +183,7 @@ export default function QueueStatus() {
     const nowStr = formatDate(new Date());
 
     const summary = `Appointment with Dr. ${status.doctor}`;
-    const description = `Appointment with Dr. ${status.doctor} at ${status.hospitalName}. Queue Number: #${status.queueNumber}. Room: ${status.room || 'TBD'}. Session: ${status.sessionLabel || 'General'}.`;
+    const description = `Appointment with Dr. ${status.doctor} at ${status.hospitalName}. Queue Number: #${status.queueNumber}. Room: ${status.room || 'TBD'}. Session: ${status.sessionLabel || 'General'}.\\n\\nCheck your live queue status here: ${window.location.href}`;
     const location = `${status.room || 'TBD'}, ${status.hospitalName}`;
 
     const icsContent = [
@@ -201,7 +201,7 @@ export default function QueueStatus() {
       `DESCRIPTION:${description}`,
       `LOCATION:${location}`,
       'BEGIN:VALARM',
-      'TRIGGER:-PT1H',
+      'TRIGGER:-PT1H30M',
       'ACTION:DISPLAY',
       'DESCRIPTION:Reminder',
       'END:VALARM',
@@ -282,7 +282,7 @@ export default function QueueStatus() {
           )}
         </div>
 
-        {isFuture && (
+        {(isFuture || !sessionHasStarted) && (
           <button
             onClick={handleAddToCalendar}
             className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold border transition-all mb-4"
@@ -346,9 +346,13 @@ export default function QueueStatus() {
               <div>
                 <p className="text-xs font-semibold mb-1" style={{ color: status.arrivalTime ? '#10b981' : '#f59e0b' }}>{t.doctorArrival}</p>
                 {status.arrivalTime ? (
-                   <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{t.arrivedAt} <span className="text-white font-bold">{status.arrivalTime}</span></p>
+                   <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{t.arrivedAt} <span className="text-white font-bold">
+                     {new Date(status.arrivalTime).getTime() ? new Date(status.arrivalTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : status.arrivalTime}
+                   </span></p>
                 ) : status.expectedArrivalTime ? (
-                   <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{t.expectedAt} <span className="text-white font-bold">{status.expectedArrivalTime}</span></p>
+                   <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{t.expectedAt} <span className="text-white font-bold">
+                     {new Date(status.expectedArrivalTime).getTime() ? new Date(status.expectedArrivalTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : status.expectedArrivalTime}
+                   </span></p>
                 ) : null}
               </div>
             </div>
