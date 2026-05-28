@@ -57,29 +57,48 @@ router.post('/login', async (req, res) => {
     // If logging in via a hospital-specific page (slug or hospitalId provided),
     // verify the user belongs to THAT hospital (super admin can login anywhere)
     if (user.role !== 'superadmin') {
-      const userHospitalId = user.hospitalId?._id?.toString() || user.hospitalId?.toString();
+      let targetHospitalId = hospitalId;
 
       if (hospitalSlug) {
-        // Verify the hospital slug matches the user's hospital
-        const userSlug = user.hospitalId?.slug;
-        if (!userSlug || userSlug !== hospitalSlug) {
+        if (user.hospitalId?.slug === hospitalSlug) {
+          targetHospitalId = user.hospitalId._id.toString();
+        } else {
+          // If the primary hospital slug doesn't match, check if they are tied to this slug via secondary hospitals
+          const h = await Hospital.findOne({ slug: hospitalSlug }).select('_id isActive');
+          if (h) {
+            targetHospitalId = h._id.toString();
+            if (!h.isActive) {
+              return res.status(403).json({ success: false, message: 'This hospital account is currently disabled.' });
+            }
+          } else {
+            // Slug doesn't exist
+            return res.status(403).json({ success: false, message: "Invalid hospital." });
+          }
+        }
+      }
+
+      if (targetHospitalId) {
+        const userHospitalId = user.hospitalId?._id?.toString() || user.hospitalId?.toString();
+        let allowedIds = [];
+        if (userHospitalId) allowedIds.push(userHospitalId);
+        
+        if (user.role === 'doctor' && user.doctorProfile?.hospitalIds) {
+          allowedIds = allowedIds.concat(user.doctorProfile.hospitalIds.map(id => id.toString()));
+        }
+
+        if (!allowedIds.includes(targetHospitalId.toString())) {
           return res.status(403).json({
             success: false,
-            message: "You are not registered with this hospital. Please use your hospital's login page."
+            message: hospitalSlug ? "You are not registered with this hospital. Please use your hospital's login page." : "Access denied. You do not belong to this hospital."
           });
         }
       }
 
-      if (hospitalId && userHospitalId && userHospitalId !== hospitalId) {
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied. You do not belong to this hospital.'
-        });
-      }
-
-      // Check hospital is active
-      if (user.hospitalId && !user.hospitalId.isActive) {
-        return res.status(403).json({ success: false, message: 'This hospital account is currently disabled.' });
+      // Check primary hospital is active if no specific target requested, or if target is primary
+      if (!targetHospitalId || targetHospitalId === user.hospitalId?._id?.toString()) {
+        if (user.hospitalId && !user.hospitalId.isActive) {
+          return res.status(403).json({ success: false, message: 'This hospital account is currently disabled.' });
+        }
       }
     }
 
