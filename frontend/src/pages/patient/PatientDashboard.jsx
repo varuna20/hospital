@@ -59,8 +59,8 @@ export default function PatientDashboard() {
           const today = new Date(new Date().setHours(0,0,0,0));
           setUpcoming(all.filter(a => new Date(a.appointmentDate) >= today));
         }
-        const { data } = await api.get('/prescriptions/my-prescriptions'); // We need to create this route
-        if (data.success) setPrescriptions(data.prescriptions);
+        const { data: presData } = await api.get('/prescriptions/my-prescriptions'); // We need to create this route
+        if (presData.success) setPrescriptions(presData.prescriptions);
       }
     } catch (err) {
       toast.error('Failed to load data');
