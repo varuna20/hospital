@@ -199,6 +199,10 @@ export default function PatientDashboard() {
                     <p className="text-xs text-[var(--color-text-muted)] font-bold uppercase tracking-wider mb-1">Family Members</p>
                     <p className="text-3xl font-black text-[var(--color-primary)]">{user?.familyMembers?.length || 0}</p>
                   </div>
+                  <div className="bg-[var(--color-surface2)] p-4 rounded-xl border border-[var(--color-border)]">
+                    <p className="text-xs text-[var(--color-text-muted)] font-bold uppercase tracking-wider mb-1">Prescriptions</p>
+                    <p className="text-3xl font-black text-[var(--color-primary)]">{prescriptions.length}</p>
+                  </div>
                 </div>
 
                 <div>
@@ -243,6 +247,30 @@ export default function PatientDashboard() {
                     </div>
                   )}
                 </div>
+
+                {/* Recent Prescriptions */}
+                {prescriptions.length > 0 && (
+                  <div>
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="text-lg font-bold">Recent Prescriptions</h3>
+                      <button onClick={() => setTab('prescriptions')} className="text-xs text-[var(--color-primary)] font-bold">View All →</button>
+                    </div>
+                    <div className="space-y-2">
+                      {prescriptions.slice(0, 3).map(p => (
+                        <div key={p._id} className="p-3 bg-[var(--color-surface2)] rounded-lg border border-[var(--color-border)] flex justify-between items-center">
+                          <div>
+                            <p className="text-sm font-bold text-white">Dr. {p.doctor?.name}</p>
+                            <p className="text-xs text-[var(--color-text-muted)]">{fDate(p.visitDate)} · {p.drugs?.length || 0} medication(s)</p>
+                          </div>
+                          <button
+                            onClick={() => downloadPrescription(p._id)}
+                            className="text-[10px] px-2 py-1 rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-white transition-colors"
+                          >⬇️ PDF</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
