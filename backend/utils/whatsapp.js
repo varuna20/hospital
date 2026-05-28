@@ -115,16 +115,27 @@ async function sendWhatsApp(hospital, to, message, templateType, templateData) {
  * Send booking confirmation to patient
  */
 async function sendBookingConfirmation(hospital, patient, appointment, doctor) {
+  const isArray = Array.isArray(appointment);
+  const mainApt = isArray ? appointment[0] : appointment;
+  
+  const combinedQueues = isArray && appointment.length > 1
+    ? appointment.map(a => `${a.queueNumber} (${(a.patient?.name || a.name || 'Patient').split(' ')[0]})`).join(', ')
+    : mainApt.queueNumber;
+
+  const totalFee = isArray
+    ? appointment.reduce((sum, a) => sum + (a.fees?.totalAmount || 0), 0)
+    : (mainApt.fees?.totalAmount || 0);
+
   const data = {
     hospitalName: hospital.name,
     patientName: patient.name,
     doctorName: doctor.name,
     specialization: doctor.specialization,
-    date: new Date(appointment.appointmentDate).toLocaleDateString('en-GB'),
-    queueNumber: appointment.queueNumber,
+    date: new Date(mainApt.appointmentDate).toLocaleDateString('en-GB'),
+    queueNumber: combinedQueues,
     room: doctor.room || 'See display screen',
     sym: hospital.payment?.currencySymbol || 'Rs.',
-    fee: appointment.fees?.totalAmount || 0,
+    fee: totalFee,
     address: hospital.address || ''
   };
 

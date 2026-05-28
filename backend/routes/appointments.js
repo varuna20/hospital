@@ -180,11 +180,6 @@ aptRouter.post('/book', async (req, res) => {
 
       createdAppointments.push(populated);
 
-      // WhatsApp confirmation
-      const hospital = await Hospital.findById(hospitalId);
-      if (hospital?.whatsapp?.enabled && hospital.whatsapp.notifyOnBook && currentPatient.whatsappOptIn !== false) {
-        sendBookingConfirmation(hospital, currentPatient, apt, doctor).catch(() => {});
-      }
     }
 
     // Save final queue lastAssignedNumber
@@ -199,48 +194,64 @@ aptRouter.post('/book', async (req, res) => {
       io.to(`display_${hospitalId}`).emit('appointment_booked', { doctorId });
     }
 
-    // Send SMS confirmation for the main booking patient if available
+    // Send SMS & WhatsApp confirmation for the main booking patient if available
     try {
       const mainApt = createdAppointments[0];
-      const hosp = await require('../models/Hospital').findById(hospitalId, 'name shortName payment sms');
+      const hosp = await require('../models/Hospital').findById(hospitalId, 'name shortName payment sms whatsapp address');
       const { SystemSettings } = require('../models/SystemSettings');
       const settings = await SystemSettings.findOne();
       
+      const patPhone = mainApt.patient?.phone || mainApt.phone;
+      
+      // Calculate estimated time
+      const avgSlot = doctor.avgConsultMinutes || 5;
+      const waitMinutes = (mainApt.queueNumber - 1) * avgSlot;
+      const startTimeStr = doctor.sessions?.[0]?.startTime || '08:00';
+      const estTime = moment(appointmentDate).set({
+        hour:   parseInt(startTimeStr.split(':')[0]),
+        minute: parseInt(startTimeStr.split(':')[1])
+      }).add(waitMinutes, 'minutes').format('hh:mm A');
+
+      const trackUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/queue-status/${mainApt.guestToken}`;
+      
+      // Handle Multiple Patients logic for names & queue numbers
+      const names = createdAppointments.map(a => (a.patient?.name || a.name || 'Patient').split(' ')[0]);
+      const combinedNames = names.join(', ');
+      const combinedQueues = createdAppointments.length > 1 
+        ? createdAppointments.map((a, i) => `${a.queueNumber} (${names[i]})`).join(', ')
+        : mainApt.queueNumber;
+      
+      const totalFee = createdAppointments.reduce((sum, a) => sum + (a.fees?.totalAmount || 0), 0);
+
+      // SMS
       const smsEnabled = hosp?.sms?.enabled || settings?.sms?.enabled;
       if (smsEnabled && hosp?.sms?.notifyOnBook !== false) {
-        const patPhone = mainApt.patient?.phone || mainApt.phone;
-        
-        // Calculate estimated time
-        const avgSlot = doctor.avgConsultMinutes || 5;
-        const waitMinutes = (mainApt.queueNumber - 1) * avgSlot;
-        const startTimeStr = doctor.sessions?.[0]?.startTime || '08:00';
-        const estTime = moment(appointmentDate).set({
-          hour:   parseInt(startTimeStr.split(':')[0]),
-          minute: parseInt(startTimeStr.split(':')[1])
-        }).add(waitMinutes, 'minutes').format('hh:mm A');
-
-        const trackUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/queue-status/${mainApt.guestToken}`;
-
         sendHospitalSms({
           hospitalId,
           to: patPhone,
           templateType: 'booking',
           templateData: {
-            patientName: mainApt.patient?.name || mainApt.name,
-            queueNumber: mainApt.queueNumber,
+            patientName: combinedNames,
+            queueNumber: combinedQueues,
             doctorName: doctor?.name || 'Doctor',
             hospitalName: hosp.shortName || hosp.name,
             date: moment(appointmentDate).format('DD/MM/YYYY'),
             time: estTime,
             sessionLabel: req.body.sessionLabel || '',
             sym: hosp.payment?.currencySymbol || 'Rs.',
-            fee: ((doctor?.fees?.doctorFee||0)+(doctor?.fees?.hospitalCharge||0)).toLocaleString(),
+            fee: totalFee.toLocaleString(),
             trackUrl
           }
         }).catch(() => {});
       }
+      
+      // WhatsApp
+      if (hosp?.whatsapp?.enabled && hosp.whatsapp.notifyOnBook !== false && mainApt.patient?.whatsappOptIn !== false) {
+        const { sendBookingConfirmation } = require('../utils/whatsapp');
+        sendBookingConfirmation(hosp, { ...mainApt.patient?.toObject(), phone: patPhone, name: combinedNames }, createdAppointments, doctor).catch(() => {});
+      }
     } catch (_e) {
-      console.error('Booking SMS error:', _e);
+      console.error('Booking Notification error:', _e);
     }
 
     // Audit log for booking
