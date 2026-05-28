@@ -327,7 +327,7 @@ export default function BookingPage() {
               if (user && user.role === 'patient') {
                 navigate('/patient-dashboard');
               } else {
-                navigate(selHospital ? `/login/${selHospital.slug}` : '/login');
+                navigate(selHospital ? `/login/${selHospital.slug}?tab=patient` : '/login?tab=patient');
               }
             }}
             className="px-3 py-1.5 md:px-4 md:py-2 rounded-xl text-xs md:text-sm font-bold transition-all duration-200"
