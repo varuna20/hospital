@@ -116,10 +116,12 @@ aptRouter.post('/book', async (req, res) => {
     const crypto = require('crypto');
 
     for (const pItem of plist) {
-      let currentPatient;
+      let currentPatient = null;
       if (pItem.patientId) {
         currentPatient = await Patient.findById(pItem.patientId);
-      } else if (pItem.name && pItem.phone) {
+      }
+      
+      if (!currentPatient && pItem.name && pItem.phone) {
         currentPatient = await Patient.findOne({
           phone: pItem.phone, hospitalId,
           name: { $regex: new RegExp('^' + pItem.name.trim() + '$', 'i') }
@@ -127,7 +129,9 @@ aptRouter.post('/book', async (req, res) => {
         if (!currentPatient) {
           currentPatient = await Patient.create({ name: pItem.name.trim(), phone: pItem.phone, hospitalId, isGuest: true });
         }
-      } else {
+      }
+
+      if (!currentPatient) {
         continue;
       }
 

@@ -265,7 +265,7 @@ export default function BookingPage() {
             return { name: user.name, phone: user.phone || '', patientId: user._id };
           } else {
             const m = user.familyMembers?.find(x => x._id.toString() === id);
-            return { name: m?.name || '', phone: m?.phone || user.phone || '', patientId: m?._id || '' };
+            return { name: m?.name || '', phone: m?.phone || user.phone || '' };
           }
         });
       }
