@@ -5,7 +5,12 @@ import { fMoney } from '../../utils/helpers';
 
 export default function SuperDashboard() {
   const [stats, setStats] = useState(null);
-  useEffect(() => { api.get('/superadmin/stats').then(({ data }) => setStats(data.stats)).catch(() => {}); }, []);
+  const [sessions, setSessions] = useState([]);
+
+  useEffect(() => { 
+    api.get('/superadmin/stats').then(({ data }) => setStats(data.stats)).catch(() => {}); 
+    api.get('/superadmin/today-sessions').then(({ data }) => setSessions(data.sessions || [])).catch(() => {});
+  }, []);
 
   const cards = stats ? [
     { label:'Total Hospitals',  value: stats.hospitals,    icon:'🏥', color:'#0d9488', link:'/super/hospitals' },
@@ -80,6 +85,57 @@ export default function SuperDashboard() {
             ))}
           </div>
         </div>
+      </div>
+
+      <div className="card mt-4">
+        <h3 className="section-title mb-3">Today's Doctor Sessions</h3>
+        {sessions.length === 0 ? (
+          <p className="text-sm text-center py-4" style={{ color: 'var(--color-text-muted)' }}>No doctor sessions scheduled for today across any hospital.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead>
+                <tr style={{ color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)' }}>
+                  <th className="pb-2 font-medium">Doctor</th>
+                  <th className="pb-2 font-medium">Specialization</th>
+                  <th className="pb-2 font-medium">Hospital</th>
+                  <th className="pb-2 font-medium">Sessions</th>
+                  <th className="pb-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {sessions.map(doc => (
+                  <tr key={doc._id}>
+                    <td className="py-3 font-medium text-white">{doc.name}</td>
+                    <td className="py-3" style={{ color: 'var(--color-text-muted)' }}>{doc.specialization}</td>
+                    <td className="py-3">
+                      <div className="flex items-center gap-2">
+                        {doc.hospital?.logoUrl && <img src={doc.hospital.logoUrl} alt="" className="w-5 h-5 rounded-full object-cover bg-white/10" />}
+                        <span className="text-white">{doc.hospital?.name || 'Unknown'}</span>
+                      </div>
+                    </td>
+                    <td className="py-3">
+                      <div className="flex flex-col gap-1">
+                        {doc.sessions.map((s, i) => (
+                          <span key={i} className="px-2 py-0.5 rounded text-xs" style={{ background: 'var(--color-surface2)', color: 'var(--color-text-muted)', width: 'fit-content' }}>
+                            {s.sessionName}: {s.startTime} - {s.endTime}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="py-3">
+                      {doc.todayStatus?.isArrived ? (
+                        <span className="text-xs px-2 py-1 rounded text-[#10b981] bg-[#10b981]/10 font-medium">Arrived</span>
+                      ) : (
+                        <span className="text-xs px-2 py-1 rounded text-[#f59e0b] bg-[#f59e0b]/10 font-medium">Expected</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

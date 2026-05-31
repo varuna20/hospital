@@ -130,6 +130,37 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+// ── Today's Sessions Across All Hospitals ──────────────────────────
+router.get('/today-sessions', async (req, res) => {
+  try {
+    const today = new Date().getDay(); // 0-6 (Sunday-Saturday)
+    const doctors = await Doctor.find({
+      isActive: true,
+      sessions: { $elemMatch: { dayOfWeek: today, isActive: { $ne: false } } }
+    })
+      .populate('hospitalId', 'name city logoUrl')
+      .sort({ name: 1 });
+      
+    // Return flat list with hospital info attached
+    const sessions = doctors.map(doc => {
+      // Find today's sessions
+      const todaySessions = doc.sessions.filter(s => s.dayOfWeek === today && s.isActive !== false);
+      return {
+        _id: doc._id,
+        name: doc.name,
+        specialization: doc.specialization,
+        hospital: doc.hospitalId,
+        sessions: todaySessions,
+        todayStatus: doc.todayStatus
+      };
+    });
+
+    res.json({ success: true, sessions });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // ── List All Hospitals ─────────────────────────────────────────────
 router.get('/hospitals', async (req, res) => {
   try {
