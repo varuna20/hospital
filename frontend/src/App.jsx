@@ -15,6 +15,7 @@ const DisplayScreen = React.lazy(() => import('./pages/display/DisplayScreen'));
 const DoctorDisplay = React.lazy(() => import('./pages/display/DoctorDisplay'));
 const KioskApp = React.lazy(() => import('./pages/display/KioskApp'));
 const PrescriptionPrint = React.lazy(() => import('./pages/doctor/PrescriptionPrint'));
+const DoctorSummaryGuest = React.lazy(() => import('./pages/doctor/DoctorSummaryGuest'));
 
 // Super Admin
 const SuperLayout = React.lazy(() => import('./pages/superadmin/SuperLayout'));
@@ -87,6 +88,7 @@ export default function App() {
               <Route path="/login/:slug"              element={<HospitalLoginPage />} />
               <Route path="/login"                    element={<LoginPage />} />
               <Route path="/queue-status/:token"      element={<QueueStatus />} />
+              <Route path="/doctor-summary/:token"    element={<DoctorSummaryGuest />} />
               <Route path="/display/:hospitalId"      element={<DisplayScreen />} />
               <Route path="/display/:hospitalId/:doctorId" element={<DoctorDisplay />} />
               <Route path="/kiosk/:hospitalId"        element={<KioskApp />} />

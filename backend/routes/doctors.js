@@ -95,6 +95,77 @@ function getHospitalId(req) {
   return hid._id ? hid._id.toString() : hid.toString();
 }
 
+// ── Guest Summary (No Login) ────────────────────────────────────────
+router.get('/guest-summary/:token', async (req, res) => {
+  try {
+    const doctor = await Doctor.findOne({ guestToken: req.params.token })
+      .populate('hospitalId', 'name shortName city logo logoUrl payment')
+      .populate('hospitalIds', 'name shortName city logo logoUrl payment');
+    
+    if (!doctor) return res.status(404).json({ success: false, message: 'Invalid or expired link' });
+
+    const today = moment().startOf('day').toDate();
+    const todayEnd = moment().endOf('day').toDate();
+
+    const appointments = await Appointment.find({
+      doctor: doctor._id,
+      appointmentDate: { $gte: today, $lte: todayEnd }
+    }).populate('hospitalId', 'name shortName city logo logoUrl payment');
+
+    // Aggregate globally
+    const totalBooked = appointments.length;
+    const completedApts = appointments.filter(a => a.status === 'completed');
+    const totalChecked = completedApts.length;
+    const totalRevenue = completedApts.reduce((sum, a) => sum + (a.fees?.doctorFee || 0), 0);
+
+    // Group by hospital
+    const hospitalMap = {};
+    const resolvedHospitals = doctor.hospitalIds.length > 0 ? doctor.hospitalIds : [doctor.hospitalId];
+    
+    resolvedHospitals.forEach(h => {
+      hospitalMap[h._id.toString()] = {
+        hospital: h,
+        totalBooked: 0,
+        totalChecked: 0,
+        totalRevenue: 0,
+        appointments: []
+      };
+    });
+
+    appointments.forEach(a => {
+      const hId = a.hospitalId?._id?.toString() || doctor.hospitalId._id.toString();
+      if (!hospitalMap[hId]) {
+        hospitalMap[hId] = { hospital: a.hospitalId, totalBooked: 0, totalChecked: 0, totalRevenue: 0, appointments: [] };
+      }
+      hospitalMap[hId].totalBooked++;
+      if (a.status === 'completed') {
+        hospitalMap[hId].totalChecked++;
+        hospitalMap[hId].totalRevenue += (a.fees?.doctorFee || 0);
+      }
+      hospitalMap[hId].appointments.push({
+        status: a.status,
+        queueNumber: a.queueNumber,
+        patientName: a.patient?.name || 'Patient',
+        fee: a.fees?.doctorFee || 0
+      });
+    });
+
+    res.json({
+      success: true,
+      summary: {
+        doctorName: doctor.name,
+        specialization: doctor.specialization,
+        totalBooked,
+        totalChecked,
+        totalRevenue,
+        hospitals: Object.values(hospitalMap).filter(h => h.totalBooked > 0 || h.hospital) // show if they had patients or are assigned there
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // ── List Doctors (public within hospital) ─────────────────────────
 // Optional auth middleware - protect if no hospitalId in query
 const optionalProtect = async (req, res, next) => {
@@ -495,22 +566,31 @@ router.put('/:id/arrival', protect, authorize('staff', 'admin', 'superadmin'), a
           await Doctor.findByIdAndUpdate(req.params.id, { 'todayStatus.whatsappSummarysent': true });
         }
 
+        // Ensure guest token exists
+        let docGuestToken = doctor.guestToken;
+        if (!docGuestToken) {
+          const crypto = require('crypto');
+          docGuestToken = crypto.randomBytes(20).toString('hex');
+          await Doctor.findByIdAndUpdate(doctor._id, { guestToken: docGuestToken });
+        }
+
         // 2. SMS Summary to Doctor with checked patient count, total session revenue and login link
+        const totalBooked = appointments.length;
         const completedApts = appointments.filter(a => a.status === 'completed');
         const totalChecked = completedApts.length;
         const totalRevenue = completedApts.reduce((sum, a) => sum + (a.fees?.doctorFee || 0), 0);
 
         const frontendUrl = process.env.FRONTEND_URL || 'https://echanneling-hospital.live';
         const currency = hospital.payment?.currencySymbol || 'Rs.';
-        const loginLink = `${frontendUrl}/login`;
+        const guestLink = `${frontendUrl}/doctor-summary/${docGuestToken}`;
 
         const smsMessage = 
           `${hospital.shortName || hospital.name}\n` +
           `Dear Dr. ${doctor.name},\n` +
           `Your session has ended.\n` +
-          `✅ Checked Patients: ${totalChecked}\n` +
-          `💰 Session Revenue: ${currency} ${totalRevenue.toLocaleString()}\n` +
-          `🔗 Portal Login: ${loginLink}`;
+          `✅ Checked: ${totalChecked}/${totalBooked} Patients\n` +
+          `💰 Revenue: ${currency} ${totalRevenue.toLocaleString()}\n` +
+          `🔗 Summary: ${guestLink}`;
 
         sendHospitalSms({
           hospitalId: hospital._id,
@@ -555,22 +635,31 @@ router.post('/:id/notify-session', protect, authorize('staff', 'admin', 'superad
       }
     }
 
+    // Ensure guest token exists
+    let docGuestToken = doctor.guestToken;
+    if (!docGuestToken) {
+      const crypto = require('crypto');
+      docGuestToken = crypto.randomBytes(20).toString('hex');
+      await Doctor.findByIdAndUpdate(doctor._id, { guestToken: docGuestToken });
+    }
+
     // 2. SMS Summary to Doctor with checked patient count, total session revenue and login link
+    const totalBooked = appointments.length;
     const completedApts = appointments.filter(a => a.status === 'completed');
     const totalChecked = completedApts.length;
     const totalRevenue = completedApts.reduce((sum, a) => sum + (a.fees?.doctorFee || 0), 0);
 
     const frontendUrl = process.env.FRONTEND_URL || 'https://echanneling-hospital.live';
     const currency = hospital.payment?.currencySymbol || 'Rs.';
-    const loginLink = `${frontendUrl}/login`;
+    const guestLink = `${frontendUrl}/doctor-summary/${docGuestToken}`;
 
     const smsMessage = 
       `${hospital.shortName || hospital.name}\n` +
       `Dear Dr. ${doctor.name},\n` +
       `Your session has ended.\n` +
-      `✅ Checked Patients: ${totalChecked}\n` +
-      `💰 Session Revenue: ${currency} ${totalRevenue.toLocaleString()}\n` +
-      `🔗 Portal Login: ${loginLink}`;
+      `✅ Checked: ${totalChecked}/${totalBooked} Patients\n` +
+      `💰 Revenue: ${currency} ${totalRevenue.toLocaleString()}\n` +
+      `🔗 Summary: ${guestLink}`;
 
     await sendHospitalSms({
       hospitalId: hospital._id,

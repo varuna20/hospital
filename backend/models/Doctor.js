@@ -41,6 +41,7 @@ const doctorSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
+  guestToken: { type: String, index: true },
 
   // ── Personal / Professional Info ─────────────────────────
   name:           { type: String, required: true, trim: true },
