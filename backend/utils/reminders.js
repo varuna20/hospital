@@ -94,7 +94,9 @@ async function processDoctorSessionSummaries() {
   console.log('⏳ Checking for doctor session notifications and summaries...');
   try {
     const Appointment = require('../models/Appointment');
-    const now = moment();
+    
+    // Enforce Sri Lanka time for CRON scheduling calculations
+    const now = moment().utcOffset('+05:30');
     const currentHour = now.hour();
     const currentMin = now.minute();
     const currentMinutes = currentHour * 60 + currentMin;
@@ -106,9 +108,11 @@ async function processDoctorSessionSummaries() {
       if (!doc.notificationSettings?.notifySessionSummary) continue;
       
       const leadTime = doc.notificationSettings.summaryLeadTimeMinutes || 60;
-      const today = moment().startOf('day').toDate();
-      const todayEnd = moment().endOf('day').toDate();
-      const dayOfWeek = moment().day();
+      
+      // Use local timezone for start/end of day
+      const today = moment().utcOffset('+05:30').startOf('day').toDate();
+      const todayEnd = moment().utcOffset('+05:30').endOf('day').toDate();
+      const dayOfWeek = moment().utcOffset('+05:30').day();
 
       // ─── PART 1: Given Daily Summary Time Check ──────────────────
       const docSendTime = doc.notificationSettings?.summarySendTime || "19:00";
@@ -126,19 +130,26 @@ async function processDoctorSessionSummaries() {
         const totalRevenue = completedApts.reduce((sum, a) => sum + (a.fees?.doctorFee || 0), 0);
         const totalBooked = appointments.length;
 
+        // Ensure guest token exists
+        let docGuestToken = doc.guestToken;
+        if (!docGuestToken) {
+          const crypto = require('crypto');
+          docGuestToken = crypto.randomBytes(20).toString('hex');
+          await Doctor.findByIdAndUpdate(doc._id, { guestToken: docGuestToken });
+        }
+
         const currency = doc.hospitalId?.payment?.currencySymbol || 'Rs.';
         const hospitalName = doc.hospitalId?.shortName || doc.hospitalId?.name || 'Hospital';
         const frontendUrl = process.env.FRONTEND_URL || 'https://echanneling-hospital.live';
-        const loginLink = `${frontendUrl}/login`;
+        const guestLink = `${frontendUrl}/doctor-summary/${docGuestToken}`;
 
         const smsMessage = 
-          `Daily Summary: ${hospitalName}\n` +
+          `${hospitalName}\n` +
           `Dear Dr. ${doc.name},\n` +
-          `Here is a summary of your sessions today:\n` +
-          `📅 Total Booked: ${totalBooked}\n` +
-          `✅ Patients Checked: ${totalChecked}\n` +
-          `💰 Total Doctor Revenue: ${currency} ${totalRevenue.toLocaleString()}\n` +
-          `🔗 Portal Login: ${loginLink}`;
+          `Your daily session summary:\n` +
+          `✅ Checked: ${totalChecked}/${totalBooked} Patients\n` +
+          `💰 Revenue: ${currency} ${totalRevenue.toLocaleString()}\n` +
+          `🔗 Summary: ${guestLink}`;
 
         // SMS
         sendHospitalSms({
