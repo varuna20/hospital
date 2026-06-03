@@ -465,6 +465,7 @@ export default function AdminSettings() {
                     <th className="py-3 font-semibold text-white/60">Time</th>
                     <th className="py-3 font-semibold text-white/60">User</th>
                     <th className="py-3 font-semibold text-white/60">Action</th>
+                    <th className="py-3 font-semibold text-white/60">Description</th>
                     <th className="py-3 font-semibold text-white/60">Target</th>
                   </tr>
                 </thead>
@@ -481,6 +482,13 @@ export default function AdminSettings() {
                           {l.action.replace(/_/g, ' ')}
                         </span>
                       </td>
+                      <td className="py-3 max-w-xs">
+                        {l.description ? (
+                          <span className="text-xs text-white/70">{l.description}</span>
+                        ) : (
+                          <span className="text-[10px] text-white/20 italic">No description</span>
+                        )}
+                      </td>
                       <td className="py-3">
                         <div className="text-white">{l.targetName}</div>
                         <div className="text-[10px] text-white/40">{l.targetType}</div>
@@ -488,7 +496,7 @@ export default function AdminSettings() {
                     </tr>
                   ))}
                   {logs.length === 0 && (
-                    <tr><td colSpan="4" className="py-10 text-center text-white/20">No logs found for selected filters.</td></tr>
+                    <tr><td colSpan="5" className="py-10 text-center text-white/20">No logs found for selected filters.</td></tr>
                   )}
                 </tbody>
               </table>

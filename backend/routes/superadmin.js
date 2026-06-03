@@ -19,6 +19,7 @@ const Doctor   = require('../models/Doctor');
 const Patient  = require('../models/Patient');
 const Appointment = require('../models/Appointment');
 const { protect, superAdminOnly } = require('../middleware/auth');
+const MessageLog = require('../models/MessageLog');
 
 const { SystemSettings } = require('../models/SystemSettings');
 const multer   = require('multer');
@@ -125,6 +126,29 @@ router.get('/stats', async (req, res) => {
         revenue: revenueResult[0] || { total: 0, totalHospitalRevenue: 0, totalDoctorRevenue: 0 }
       }
     });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── Daily Message Stats ────────────────────────────────────────────
+router.get('/message-stats', async (req, res) => {
+  try {
+    const moment = require('moment');
+    const todayStart = moment().utcOffset('+05:30').startOf('day').toDate();
+    const todayEnd   = moment().utcOffset('+05:30').endOf('day').toDate();
+
+    const results = await MessageLog.aggregate([
+      { $match: { createdAt: { $gte: todayStart, $lte: todayEnd }, status: { $ne: 'failed' } } },
+      { $group: { _id: '$type', count: { $sum: 1 } } }
+    ]);
+
+    const counts = { sms: 0, whatsapp: 0, email: 0 };
+    for (const r of results) {
+      if (r._id && counts.hasOwnProperty(r._id)) counts[r._id] = r.count;
+    }
+
+    res.json({ success: true, counts });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

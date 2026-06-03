@@ -29,6 +29,8 @@ const auditLogSchema = new mongoose.Schema({
   targetId:   mongoose.Schema.Types.ObjectId,
   targetName: String,
 
+  description: String,   // Human-readable summary of what changed
+
   oldValues: mongoose.Schema.Types.Mixed,
   newValues: mongoose.Schema.Types.Mixed,
 

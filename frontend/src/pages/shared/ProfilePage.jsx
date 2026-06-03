@@ -10,6 +10,7 @@ export default function ProfilePage() {
     name: user?.name || '',
     email: user?.email || '',
     phone: user?.phone || '',
+    bloodGroup: user?.bloodGroup || '',
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
@@ -38,6 +39,7 @@ export default function ProfilePage() {
       formData.append('name', form.name);
       formData.append('phone', form.phone);
       if (form.email) formData.append('email', form.email);
+      if (form.bloodGroup) formData.append('bloodGroup', form.bloodGroup);
       if (form.notificationSettings) formData.append('notificationSettings', JSON.stringify(form.notificationSettings));
       if (form.newPassword) {
         formData.append('currentPassword', form.currentPassword);
@@ -98,6 +100,21 @@ export default function ProfilePage() {
               <label className="label">Phone Number</label>
               <input className="input" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} required />
             </div>
+            {user?.role === 'patient' && (
+              <div>
+                <label className="label">Blood Group <span style={{ color: 'var(--color-text-muted)' }}>(optional)</span></label>
+                <select
+                  className="input"
+                  value={form.bloodGroup}
+                  onChange={e => setForm({...form, bloodGroup: e.target.value})}
+                >
+                  <option value="">— Select —</option>
+                  {['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(g => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {user?.role === 'doctor' && (

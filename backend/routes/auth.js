@@ -342,6 +342,7 @@ router.put('/profile', protect, upload.single('avatar'), async (req, res) => {
     }
     if (email !== undefined && req.user.role !== 'patient') user.email = email;
     if (req.body.address !== undefined && req.user.role === 'patient') user.address = req.body.address;
+    if (req.body.bloodGroup !== undefined && req.user.role === 'patient') user.bloodGroup = req.body.bloodGroup;
 
     // Avatar upload
     if (req.file) {

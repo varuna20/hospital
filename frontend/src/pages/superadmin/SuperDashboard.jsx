@@ -6,10 +6,12 @@ import { fMoney } from '../../utils/helpers';
 export default function SuperDashboard() {
   const [stats, setStats] = useState(null);
   const [sessions, setSessions] = useState([]);
+  const [msgStats, setMsgStats] = useState(null);
 
   useEffect(() => { 
     api.get('/superadmin/stats').then(({ data }) => setStats(data.stats)).catch(() => {}); 
     api.get('/superadmin/today-sessions').then(({ data }) => setSessions(data.sessions || [])).catch(() => {});
+    api.get('/superadmin/message-stats').then(({ data }) => setMsgStats(data.counts)).catch(() => {});
   }, []);
 
   const cards = stats ? [
@@ -29,7 +31,7 @@ export default function SuperDashboard() {
         <p className="text-sm" style={{ color:'var(--color-text-muted)' }}>All hospitals — real-time data</p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
         {!stats ? Array(7).fill(0).map((_,i) => (
           <div key={i} className="stat-card animate-pulse">
             <div className="h-8 rounded w-12 mb-2" style={{ background:'var(--color-surface2)' }} />
@@ -43,6 +45,26 @@ export default function SuperDashboard() {
             {link && <Link to={link} className="text-xs mt-1" style={{ color:'var(--color-primary)' }}>View →</Link>}
           </div>
         ))}
+      </div>
+
+      {/* Daily Notifications Summary */}
+      <div className="mb-6">
+        <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--color-text-muted)' }}>Today's Notifications Sent</p>
+        <div className="grid grid-cols-3 gap-4">
+          {[
+            { label: 'SMS Sent',       icon: '📩', color: '#0ea5e9', val: msgStats?.sms },
+            { label: 'WhatsApp Sent',  icon: '📱', color: '#10b981', val: msgStats?.whatsapp },
+            { label: 'Emails Sent',    icon: '📧', color: '#a78bfa', val: msgStats?.email },
+          ].map(({ label, icon, color, val }) => (
+            <div key={label} className="stat-card">
+              <span className="text-2xl">{icon}</span>
+              <p className="stat-value" style={{ color }}>
+                {msgStats === null ? '—' : (val ?? 0)}
+              </p>
+              <p className="stat-label">{label}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">

@@ -5,14 +5,28 @@ const Hospital = require('../models/Hospital');
 const Doctor = require('../models/Doctor');
 const { sendHospitalSms } = require('./sms');
 
+// ─── UTILITIES ───────────────────────────────────────────────────────────────
+
+function nowIST() {
+  return moment().utcOffset('+05:30');
+}
+
+function todayRangeIST() {
+  const start = moment().utcOffset('+05:30').startOf('day');
+  const end   = moment().utcOffset('+05:30').endOf('day');
+  return { start: start.toDate(), end: end.toDate() };
+}
+
+// ─── PATIENT FOLLOW-UP REMINDERS ─────────────────────────────────────────────
+
 async function processFollowUpReminders() {
   console.log('⏳ Running Follow-Up Reminders Check...');
-  
+
   try {
     const todayStart = moment().startOf('day').toDate();
-    const todayEnd = moment().endOf('day').toDate();
+    const todayEnd   = moment().endOf('day').toDate();
     const threeDaysFromNowStart = moment().add(3, 'days').startOf('day').toDate();
-    const threeDaysFromNowEnd = moment().add(3, 'days').endOf('day').toDate();
+    const threeDaysFromNowEnd   = moment().add(3, 'days').endOf('day').toDate();
 
     // 1. Three-Day Reminders
     const threeDayPrescriptions = await Prescription.find({
@@ -22,16 +36,15 @@ async function processFollowUpReminders() {
 
     for (const p of threeDayPrescriptions) {
       if (!p.patient?.phone) continue;
-      
+
       const hospital = p.hospitalId;
       const templateData = {
         hospitalName: hospital?.name || 'Hospital',
-        patientName: p.patient.name,
-        doctorName: p.doctor?.name || 'your doctor',
-        date: moment(p.followUpDate).format('YYYY-MM-DD')
+        patientName:  p.patient.name,
+        doctorName:   p.doctor?.name || 'your doctor',
+        date:         moment(p.followUpDate).format('YYYY-MM-DD')
       };
-      
-      // Send SMS
+
       await sendHospitalSms({
         hospitalId: hospital?._id,
         to: p.patient.phone,
@@ -39,13 +52,12 @@ async function processFollowUpReminders() {
         templateData
       });
 
-      // Send WhatsApp if enabled
       if (hospital?.whatsapp?.enabled) {
         const { sendWhatsApp } = require('./whatsapp');
         const waMsg = `Follow-up Reminder from ${templateData.hospitalName}: You have a session with Dr. ${templateData.doctorName} on ${templateData.date}.`;
         await sendWhatsApp(hospital, p.patient.phone, waMsg, 'reminder', templateData);
       }
-      
+
       p.reminderSent.threeDay = true;
       await p.save();
     }
@@ -58,15 +70,15 @@ async function processFollowUpReminders() {
 
     for (const p of dayOfPrescriptions) {
       if (!p.patient?.phone) continue;
-      
+
       const hospital = p.hospitalId;
       const templateData = {
         hospitalName: hospital?.name || 'Hospital',
-        patientName: p.patient.name,
-        doctorName: p.doctor?.name || 'your doctor',
-        date: 'TODAY'
+        patientName:  p.patient.name,
+        doctorName:   p.doctor?.name || 'your doctor',
+        date:         'TODAY'
       };
-      
+
       await sendHospitalSms({
         hospitalId: hospital?._id,
         to: p.patient.phone,
@@ -79,148 +91,277 @@ async function processFollowUpReminders() {
         const waMsg = `Urgent Reminder from ${templateData.hospitalName}: Your follow-up with Dr. ${templateData.doctorName} is TODAY. Please book your number early.`;
         await sendWhatsApp(hospital, p.patient.phone, waMsg, 'reminder', templateData);
       }
-      
+
       p.reminderSent.dayOf = true;
       await p.save();
     }
-    
+
     console.log(`✅ Processed Reminders: ${threeDayPrescriptions.length} (3-day), ${dayOfPrescriptions.length} (Day-of)`);
   } catch (err) {
     console.error('❌ Error processing reminders:', err);
   }
 }
 
-async function processDoctorSessionSummaries() {
-  console.log('⏳ Checking for doctor session notifications and summaries...');
+// ─── 8 AM MORNING DOCTOR BRIEF ───────────────────────────────────────────────
+// Runs at exactly 8:00 AM IST every day.
+// Sends a brief to any doctor who has at least one appointment booked today.
+
+async function processMorningDoctorBrief() {
+  console.log('⏳ Running 8 AM Morning Doctor Brief...');
+
   try {
     const Appointment = require('../models/Appointment');
-    
-    // Enforce Sri Lanka time for CRON scheduling calculations
-    const now = moment().utcOffset('+05:30');
-    const currentHour = now.hour();
-    const currentMin = now.minute();
-    const currentMinutes = currentHour * 60 + currentMin;
-    
-    // Find all active doctors
+    const crypto      = require('crypto');
+    const { start: todayStart, end: todayEnd } = todayRangeIST();
+    const frontendUrl = process.env.FRONTEND_URL || 'https://echanneling-hospital.live';
+
+    // Get all active doctors
     const doctors = await Doctor.find({ isActive: true }).populate('hospitalId');
-    
+
     for (const doc of doctors) {
-      if (!doc.notificationSettings?.notifySessionSummary) continue;
-      
-      const leadTime = doc.notificationSettings.summaryLeadTimeMinutes || 60;
-      
-      // Use local timezone for start/end of day
-      const today = moment().utcOffset('+05:30').startOf('day').toDate();
-      const todayEnd = moment().utcOffset('+05:30').endOf('day').toDate();
-      const dayOfWeek = moment().utcOffset('+05:30').day();
+      if (!doc.phone) continue;
 
-      // ─── PART 1: Given Daily Summary Time Check ──────────────────
-      const docSendTime = doc.notificationSettings?.summarySendTime || "19:00";
-      const [sendHour, sendMin] = docSendTime.split(':').map(Number);
-      const targetMinutes = sendHour * 60 + sendMin;
+      // Find all appointments for this doctor today
+      const appointments = await Appointment.find({
+        doctor: doc._id,
+        appointmentDate: { $gte: todayStart, $lte: todayEnd },
+        status: { $in: ['booked', 'completed', 'checked-in'] }
+      });
 
-      // Check if we are inside the 10 min window of the daily summary send time
-      if (currentMinutes >= targetMinutes && currentMinutes < targetMinutes + 10) {
-        const appointments = await Appointment
-          .find({ doctor: doc._id, appointmentDate: { $gte: today, $lte: todayEnd } })
-          .populate('patient', 'name phone');
+      if (appointments.length === 0) continue; // No appointments today – skip
 
-        const completedApts = appointments.filter(a => a.status === 'completed');
-        const totalChecked = completedApts.length;
-        const totalRevenue = completedApts.reduce((sum, a) => sum + (a.fees?.doctorFee || 0), 0);
-        const totalBooked = appointments.length;
-
-        // Ensure guest token exists
-        let docGuestToken = doc.guestToken;
-        if (!docGuestToken) {
-          const crypto = require('crypto');
-          docGuestToken = crypto.randomBytes(20).toString('hex');
-          await Doctor.findByIdAndUpdate(doc._id, { guestToken: docGuestToken });
-        }
-
-        const currency = doc.hospitalId?.payment?.currencySymbol || 'Rs.';
-        const hospitalName = doc.hospitalId?.shortName || doc.hospitalId?.name || 'Hospital';
-        const frontendUrl = process.env.FRONTEND_URL || 'https://echanneling-hospital.live';
-        const guestLink = `${frontendUrl}/doctor-summary/${docGuestToken}`;
-
-        const smsMessage = 
-          `${hospitalName}\n` +
-          `Dear Dr. ${doc.name},\n` +
-          `Your daily session summary:\n` +
-          `✅ Checked: ${totalChecked}/${totalBooked} Patients\n` +
-          `💰 Revenue: ${currency} ${totalRevenue.toLocaleString()}\n` +
-          `🔗 Summary: ${guestLink}`;
-
-        // SMS
-        sendHospitalSms({
-          hospitalId: doc.hospitalId?._id,
-          to: doc.phone,
-          message: smsMessage
-        }).catch(err => console.error('Daily Doctor SMS summary failed:', err));
-
-        // WhatsApp
-        if (doc.hospitalId?.whatsapp?.enabled) {
-          const { sendCustomMessage } = require('./whatsapp');
-          sendCustomMessage(doc.hospitalId, { phone: doc.phone, name: doc.name }, smsMessage).catch(() => {});
-        }
-
-        console.log(`✅ Sent today's daily session summary to Dr. ${doc.name} at ${docSendTime}`);
+      // Count by session (group by sessionId / startTime)
+      const sessionGroups = {};
+      for (const apt of appointments) {
+        const key = apt.sessionId || 'General';
+        sessionGroups[key] = (sessionGroups[key] || 0) + 1;
       }
-      
-      // ─── PART 2: Upcoming Session Lead Time Reminder ─────────────
-      const sessions = (doc.sessions || []).filter(s => s.dayOfWeek === dayOfWeek && s.isActive);
-      
-      for (const s of sessions) {
+
+      // Ensure guest token
+      let guestToken = doc.guestToken;
+      if (!guestToken) {
+        guestToken = crypto.randomBytes(20).toString('hex');
+        await Doctor.findByIdAndUpdate(doc._id, { guestToken });
+      }
+
+      const guestLink    = `${frontendUrl}/doctor-summary/${guestToken}`;
+      const hospitalName = doc.hospitalId?.shortName || doc.hospitalId?.name || 'Hospital';
+
+      // Build session lines
+      const sessionLines = doc.sessions
+        .filter(s => s.isActive && s.dayOfWeek === nowIST().day())
+        .map(s => `  • ${s.sessionName}: ${s.startTime} - ${s.endTime}`)
+        .join('\n');
+
+      const message =
+        `🌅 Good Morning, Dr. ${doc.name.replace(/^Dr\.?\s*/i, '')}!\n` +
+        `${hospitalName} – Today's Schedule:\n` +
+        `📋 Total Appointments: ${appointments.length}\n` +
+        (sessionLines ? `Sessions:\n${sessionLines}\n` : '') +
+        `🔗 View Details: ${guestLink}`;
+
+      // Send SMS
+      sendHospitalSms({
+        hospitalId: doc.hospitalId?._id,
+        to: doc.phone,
+        message
+      }).catch(err => console.error(`❌ Morning brief SMS failed for Dr. ${doc.name}:`, err));
+
+      // Send WhatsApp if enabled
+      if (doc.hospitalId?.whatsapp?.enabled) {
+        const { sendCustomMessage } = require('./whatsapp');
+        sendCustomMessage(doc.hospitalId, { phone: doc.phone, name: doc.name }, message)
+          .catch(() => {});
+      }
+
+      console.log(`✅ Sent 8 AM morning brief to Dr. ${doc.name} (${appointments.length} appointments today)`);
+    }
+  } catch (err) {
+    console.error('❌ Error processing morning doctor brief:', err);
+  }
+}
+
+// ─── PRE-SESSION 2-HOUR REMINDER ─────────────────────────────────────────────
+// Runs every 10 minutes.
+// Sends a reminder exactly 2 hours before each session starts.
+
+async function processSessionReminders() {
+  console.log('⏳ Checking for 2-hour pre-session reminders...');
+
+  try {
+    const Appointment = require('../models/Appointment');
+    const { start: todayStart, end: todayEnd } = todayRangeIST();
+    const now      = nowIST();
+    const dayOfWeek = now.day();
+
+    const PRE_SESSION_MINUTES = 120; // Fixed 2-hour lead time
+
+    const doctors = await Doctor.find({ isActive: true }).populate('hospitalId');
+
+    for (const doc of doctors) {
+      if (!doc.phone) continue;
+
+      const todaySessions = (doc.sessions || []).filter(
+        s => s.isActive && s.dayOfWeek === dayOfWeek
+      );
+
+      for (const s of todaySessions) {
         if (!s.startTime) continue;
-        
-        // Calculate session start time today
-        const [hour, min] = s.startTime.split(':');
-        const sessionStart = moment().set({ hour, minute: min, second: 0 });
-        
-        // If session starts in exactly 'leadTime' (within 10 min window)
-        const diff = sessionStart.diff(now, 'minutes');
-        
-        if (diff > leadTime - 10 && diff <= leadTime) {
-          const patientCount = await Appointment.countDocuments({
+
+        const [hour, minute] = s.startTime.split(':').map(Number);
+        // Build session start moment in IST for today
+        const sessionStart = moment().utcOffset('+05:30').set({ hour, minute, second: 0, millisecond: 0 });
+
+        const diffMinutes = sessionStart.diff(now, 'minutes');
+
+        // Fire within the 10-minute cron window around the 2-hour mark
+        if (diffMinutes >= PRE_SESSION_MINUTES - 5 && diffMinutes < PRE_SESSION_MINUTES + 5) {
+          // Count booked patients for this session today
+          const bookedCount = await Appointment.countDocuments({
             doctor: doc._id,
-            appointmentDate: today,
-            sessionId: s._id || `${s.sessionName}-${s.startTime}`,
-            status: 'booked'
+            appointmentDate: { $gte: todayStart, $lte: todayEnd },
+            status: { $in: ['booked', 'checked-in'] }
           });
 
+          if (bookedCount === 0) {
+            console.log(`ℹ️  Skipping 2-hr reminder for Dr. ${doc.name} – 0 patients booked`);
+            continue;
+          }
+
           const hospitalName = doc.hospitalId?.shortName || doc.hospitalId?.name || 'Hospital';
-          const msg = `${hospitalName}: Dr. ${doc.name.replace('Dr. ','')}, your ${s.sessionName || 'session'} starts in ${leadTime} mins. You have ${patientCount} patients booked for this session.`;
+          const msg =
+            `⏰ ${hospitalName}: Dr. ${doc.name.replace(/^Dr\.?\s*/i, '')}, ` +
+            `your ${s.sessionName || 'session'} starts at ${s.startTime} (in 2 hours). ` +
+            `You have ${bookedCount} patient${bookedCount !== 1 ? 's' : ''} booked.`;
 
           // SMS
           sendHospitalSms({
             hospitalId: doc.hospitalId?._id,
             to: doc.phone,
             message: msg
-          }).catch(() => {});
+          }).catch(err => console.error(`❌ Pre-session SMS failed for Dr. ${doc.name}:`, err));
 
           // WhatsApp
           if (doc.hospitalId?.whatsapp?.enabled) {
             const { sendCustomMessage } = require('./whatsapp');
-            sendCustomMessage(doc.hospitalId, { phone: doc.phone, name: doc.name }, msg).catch(() => {});
+            sendCustomMessage(doc.hospitalId, { phone: doc.phone, name: doc.name }, msg)
+              .catch(() => {});
           }
-          
-          console.log(`✅ Sent upcoming session lead reminder to Dr. ${doc.name} (${patientCount} patients)`);
+
+          console.log(`✅ Sent 2-hr pre-session reminder to Dr. ${doc.name} (${bookedCount} patients)`);
         }
       }
     }
   } catch (err) {
-    console.error('❌ Error processing doctor summaries:', err);
+    console.error('❌ Error processing pre-session reminders:', err);
   }
 }
 
-function startReminderScheduler() {
-  // Run patient follow-up reminders every morning at 8:00 AM
-  cron.schedule('0 8 * * *', processFollowUpReminders);
-  
-  // Run doctor session summaries every 10 minutes
-  cron.schedule('*/10 * * * *', processDoctorSessionSummaries);
-  
-  console.log('✅ Automated Reminder Scheduler Started');
+// ─── END-OF-DAY DOCTOR SESSION SUMMARY ───────────────────────────────────────
+// Runs every 10 minutes and fires when the clock matches each doctor's
+// preferred summary send time (default 19:00).
+
+async function processDoctorSessionSummaries() {
+  console.log('⏳ Checking for end-of-day doctor session summaries...');
+
+  try {
+    const Appointment = require('../models/Appointment');
+    const crypto      = require('crypto');
+    const now         = nowIST();
+    const currentMinutes = now.hour() * 60 + now.minute();
+    const { start: todayStart, end: todayEnd } = todayRangeIST();
+    const frontendUrl = process.env.FRONTEND_URL || 'https://echanneling-hospital.live';
+
+    const doctors = await Doctor.find({ isActive: true }).populate('hospitalId');
+
+    for (const doc of doctors) {
+      if (!doc.phone) continue;
+      if (!doc.notificationSettings?.notifySessionSummary) continue;
+
+      const sendTime    = doc.notificationSettings?.summarySendTime || '19:00';
+      const [sendHour, sendMin] = sendTime.split(':').map(Number);
+      const targetMinutes = sendHour * 60 + sendMin;
+
+      // Check if we are within a 10-minute window of the scheduled send time
+      if (currentMinutes < targetMinutes || currentMinutes >= targetMinutes + 10) continue;
+
+      const appointments = await Appointment.find({
+        doctor: doc._id,
+        appointmentDate: { $gte: todayStart, $lte: todayEnd }
+      }).populate('patient', 'name phone');
+
+      const totalBooked  = appointments.length;
+      if (totalBooked === 0) continue; // Nothing to summarise
+
+      const completed    = appointments.filter(a => a.status === 'completed');
+      const totalChecked = completed.length;
+      const totalRevenue = completed.reduce((sum, a) => sum + (a.fees?.doctorFee || 0), 0);
+
+      // Ensure guest token
+      let guestToken = doc.guestToken;
+      if (!guestToken) {
+        guestToken = crypto.randomBytes(20).toString('hex');
+        await Doctor.findByIdAndUpdate(doc._id, { guestToken });
+      }
+
+      const guestLink    = `${frontendUrl}/doctor-summary/${guestToken}`;
+      const currency     = doc.hospitalId?.payment?.currencySymbol || 'Rs.';
+      const hospitalName = doc.hospitalId?.shortName || doc.hospitalId?.name || 'Hospital';
+
+      const message =
+        `📊 ${hospitalName}\n` +
+        `End-of-Day Summary – Dr. ${doc.name.replace(/^Dr\.?\s*/i, '')}\n` +
+        `✅ Checked: ${totalChecked}/${totalBooked} patients\n` +
+        `💰 Revenue: ${currency} ${totalRevenue.toLocaleString()}\n` +
+        `🔗 Full Report: ${guestLink}`;
+
+      // SMS
+      sendHospitalSms({
+        hospitalId: doc.hospitalId?._id,
+        to: doc.phone,
+        message
+      }).catch(err => console.error(`❌ End-of-day SMS failed for Dr. ${doc.name}:`, err));
+
+      // WhatsApp
+      if (doc.hospitalId?.whatsapp?.enabled) {
+        const { sendCustomMessage } = require('./whatsapp');
+        sendCustomMessage(doc.hospitalId, { phone: doc.phone, name: doc.name }, message)
+          .catch(() => {});
+      }
+
+      console.log(`✅ Sent end-of-day summary to Dr. ${doc.name} (${totalChecked}/${totalBooked} patients, ${currency} ${totalRevenue})`);
+    }
+  } catch (err) {
+    console.error('❌ Error processing doctor session summaries:', err);
+  }
 }
 
-module.exports = { startReminderScheduler, processFollowUpReminders, processDoctorSessionSummaries };
+// ─── SCHEDULER ───────────────────────────────────────────────────────────────
+
+function startReminderScheduler() {
+  // Patient follow-up reminders – every day at 8:00 AM IST
+  cron.schedule('0 8 * * *', processFollowUpReminders, { timezone: 'Asia/Colombo' });
+
+  // 8 AM morning doctor brief – every day at 8:00 AM IST
+  cron.schedule('0 8 * * *', processMorningDoctorBrief, { timezone: 'Asia/Colombo' });
+
+  // Pre-session 2-hour reminder – every 10 minutes
+  cron.schedule('*/10 * * * *', processSessionReminders);
+
+  // End-of-day doctor session summary – every 10 minutes (matches doctor's scheduled send time)
+  cron.schedule('*/10 * * * *', processDoctorSessionSummaries);
+
+  console.log('✅ Automated Reminder Scheduler Started');
+  console.log('   📋 8:00 AM IST – Patient follow-up reminders');
+  console.log('   🌅 8:00 AM IST – Doctor morning brief (if appointments exist)');
+  console.log('   ⏰ Every 10 min – 2-hour pre-session reminder to doctors');
+  console.log('   📊 Every 10 min – End-of-day doctor session summary');
+}
+
+module.exports = {
+  startReminderScheduler,
+  processFollowUpReminders,
+  processMorningDoctorBrief,
+  processSessionReminders,
+  processDoctorSessionSummaries
+};
