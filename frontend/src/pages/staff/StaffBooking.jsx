@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
@@ -7,6 +8,7 @@ import { todayISO, fMoney, waitEstimateFromMins } from '../../utils/helpers';
 
 export default function StaffBooking() {
   const { hospital } = useAuth();
+  const navigate = useNavigate();
   const hid = hospital?._id;
   const sym = hospital?.payment?.currencySymbol || 'Rs.';
   const [doctors, setDoctors] = useState([]);
@@ -201,6 +203,15 @@ export default function StaffBooking() {
               </div>
             )}
             <button onClick={reset} className="btn-primary w-full">+ New Booking</button>
+            <button
+              onClick={() => navigate('/staff/refund')}
+              className="w-full mt-2 py-2 px-4 rounded-xl text-sm font-medium transition-all"
+              style={{ background: 'var(--color-surface2)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)' }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#f87171'; e.currentTarget.style.borderColor = '#f87171'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-muted)'; e.currentTarget.style.borderColor = 'var(--color-border)'; }}
+            >
+              💸 Process a Refund
+            </button>
           </div>
         </div>
       </div>
