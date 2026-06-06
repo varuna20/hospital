@@ -150,6 +150,7 @@ mongoose.connect(process.env.MONGO_URI)
       require('./utils/backup').startBackupScheduler();
       require('./utils/billing').startBillingScheduler();
       require('./utils/keepAlive').startKeepAliveScheduler();
+      require('./utils/reminders').startReminderScheduler();
     } catch(e) { console.warn('Init:', e.message); }
     const PORT = process.env.PORT || 5000;
     server.listen(PORT, () => console.log('🚀 Server on port', PORT));
